@@ -8,9 +8,8 @@ A comprehensive decentralized governance system built with OpenZeppelin Governor
 
 - **`LCAIGovernor.sol`** - Main governance contract with proposal creation, voting, and execution
 - **`LCAITimeLock.sol`** - Timelock controller for delayed execution of approved proposals
-- **`Token.sol`** - ERC20 token with voting extensions for token-based governance
+- **`WLCAI.sol`** - ETH-backed governance token with 1:1 ETH deposits and withdrawals
 - **`ManualVotesStrategy.sol`** - Admin-controlled voting power assignment system
-- **`TokenWrapper.sol`** - Wrapper for external tokens to enable voting
 - **`Counter.sol`** - Example target contract for testing governance actions
 
 ### Governance Features
@@ -41,7 +40,28 @@ await token.write.delegate([voterAddress], { account: voter });
 - Supports delegation chains
 - Standard ERC20 compatibility
 
-### 2. Manual Votes Strategy (`ManualVotesStrategy.sol`)
+### 2. ETH-Backed Voting (`WLCAI.sol`)
+
+**ETH-collateralized governance tokens with 1:1 backing**
+
+```solidity
+// Users deposit ETH to mint governance tokens
+await user.sendTransaction({
+  to: wLCAI.address,
+  value: parseEther("10"), // Deposit 10 ETH
+});
+await wLCAI.write.delegate([voterAddress], { account: user });
+```
+
+**Characteristics:**
+
+- ETH-backed governance tokens (1:1 ratio)
+- Users must lock ETH to participate in governance
+- Full delegation and snapshot support
+- Withdraw ETH anytime by burning tokens
+- No token economics - direct ETH commitment
+
+### 3. Manual Votes Strategy (`ManualVotesStrategy.sol`)
 
 **Admin-controlled voting power assignment**
 
@@ -87,6 +107,9 @@ Execute the comprehensive test suite covering both voting strategies:
 # Run all governance tests
 npx hardhat test ./test/LCAIGovernor.ts
 
+# Run WLCAI tests
+npx hardhat test ./test/WLCAI.ts
+
 # Run all tests in the project
 npx hardhat test
 ```
@@ -94,10 +117,12 @@ npx hardhat test
 **Test Coverage:**
 
 - ✅ Complete governance flow (create → vote → queue → execute)
-- ✅ Quorum enforcement for both voting strategies
+- ✅ Quorum enforcement for all voting strategies
+- ✅ ETH deposit/withdrawal functionality with 1:1 backing
 - ✅ Timelock delay protection
 - ✅ Dynamic voting power updates
 - ✅ Delegation controls and restrictions
+- ✅ Reentrancy protection and security measures
 
 ## 📦 Deployment
 
@@ -138,17 +163,16 @@ For mainnet deployment, ensure:
 
 - [ ] Comprehensive security audit completed
 - [ ] Multi-sig wallet setup for admin functions
-- [ ] Timelock parameters properly configured
 - [ ] Voting strategy chosen and parameters set
 - [ ] Emergency procedures documented
 
 ## 🎮 Usage Examples
 
-### Token-Based Governance Flow
+### ETH-Backed Governance Flow
 
 ```typescript
-// 1. Deploy governance contracts with token strategy
-const token = await viem.deployContract("Token");
+// 1. Deploy governance contracts with WLCAI strategy
+const wLCAI = await viem.deployContract("WLCAI");
 const timelock = await viem.deployContract("LCAITimeLock", [
   172800n, // 2 days delay
   [], // proposers (set to governor)
@@ -156,13 +180,16 @@ const timelock = await viem.deployContract("LCAITimeLock", [
   adminAddress,
 ]);
 const governor = await viem.deployContract("LCAIGovernor", [
-  token.address,
+  wLCAI.address,
   timelock.address,
 ]);
 
-// 2. Distribute tokens and delegate voting power
-await token.write.transfer([voterAddress, parseEther("1000")]);
-await token.write.delegate([voterAddress], { account: voter });
+// 2. Users deposit ETH to get voting power
+await user.sendTransaction({
+  to: wLCAI.address,
+  value: parseEther("10"), // deposit 10 ETH
+});
+await wLCAI.write.delegate([voterAddress], { account: user });
 
 // 3. Create proposal
 const proposalTx = await governor.write.propose(
@@ -183,6 +210,9 @@ await governor.write.queue([targets, values, calldatas, descriptionHash]);
 
 // 6. Execute proposal (after timelock delay)
 await governor.write.execute([targets, values, calldatas, descriptionHash]);
+
+// 7. Users can withdraw their ETH anytime (burns tokens)
+await wLCAI.write.withdraw([parseEther("5")], { account: user }); // Withdraw 5 LCAI
 ```
 
 ### Manual Voting Strategy Flow
