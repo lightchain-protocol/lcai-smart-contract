@@ -1,56 +1,39 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
-
+import { expect } from "chai";
 import { network } from "hardhat";
 
-describe("Counter", async function () {
-  const { viem } = await network.connect();
-  const publicClient = await viem.getPublicClient();
-
+describe("Counter", function () {
   it("Should emit the Increment event when calling the inc() function", async function () {
-    // Deploy a simple timelock for testing
-    const [deployer] = await viem.getWalletClients();
+    const { ethers } = await network.connect();
+    const [deployer] = await ethers.getSigners();
 
-    const counter = await viem.deployContract("Counter", [
-      deployer.account.address,
-    ]);
+    const counter = await ethers.deployContract("Counter", [deployer.address]);
 
-    await viem.assertions.emitWithArgs(
-      counter.write.inc(),
-      counter,
-      "Increment",
-      [1n]
-    );
+    await expect(counter.inc()).to.emit(counter, "Increment").withArgs(1n);
   });
 
   it("The sum of the Increment events should match the current value", async function () {
-    // Deploy a simple timelock for testing
-    const [deployer] = await viem.getWalletClients();
+    const { ethers } = await network.connect();
+    const [deployer] = await ethers.getSigners();
 
-    const counter = await viem.deployContract("Counter", [
-      deployer.account.address,
-    ]);
-    const deploymentBlockNumber = await publicClient.getBlockNumber();
+    const counter = await ethers.deployContract("Counter", [deployer.address]);
 
     // run a series of increments
     for (let i = 1n; i <= 10n; i++) {
-      await counter.write.incBy([i]);
+      await counter.incBy(i);
     }
 
-    const events = await publicClient.getContractEvents({
-      address: counter.address,
-      abi: counter.abi,
-      eventName: "Increment",
-      fromBlock: deploymentBlockNumber,
-      strict: true,
-    });
+    // Get events using queryFilter
+    const filter = counter.filters.Increment();
+    const events = await counter.queryFilter(filter);
 
     // check that the aggregated events match the current value
     let total = 0n;
     for (const event of events) {
-      total += event.args.by;
+      if ('args' in event) {
+        total += BigInt(event.args.by.toString());
+      }
     }
 
-    assert.equal(total, await counter.read.x());
+    expect(total).to.equal(await counter.x());
   });
 });

@@ -1,10 +1,10 @@
 import type { HardhatUserConfig } from "hardhat/config";
 
-import hardhatToolboxViemPlugin from "@nomicfoundation/hardhat-toolbox-viem";
+import hardhatToolboxMochaEthersPlugin from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
 import { configVariable } from "hardhat/config";
 
 const config: HardhatUserConfig = {
-  plugins: [hardhatToolboxViemPlugin],
+  plugins: [hardhatToolboxMochaEthersPlugin],
   solidity: {
     profiles: {
       default: {
@@ -35,6 +35,14 @@ const config: HardhatUserConfig = {
     hardhatOp: {
       type: "edr-simulated",
       chainType: "op",
+    },
+    lcaiTestnet: {
+      type: "http",
+      chainType: "l1",
+      url: "https://light-testnet-rpc.lightchain.ai",
+      accounts: [
+        "0x28f7a5f690ae6ca69511670eb04ef91c1f6fa1fc34df69856a4fd178f750d038",
+      ],
     },
     sepolia: {
       type: "http",

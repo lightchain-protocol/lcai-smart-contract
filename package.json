@@ -4,12 +4,17 @@
   "type": "module",
   "devDependencies": {
     "@nomicfoundation/hardhat-ignition": "^3.0.3",
-    "@nomicfoundation/hardhat-toolbox-viem": "^5.0.0",
+    "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.0",
+    "@types/chai": "^4.3.20",
+    "@types/chai-as-promised": "^8.0.2",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^22.18.8",
+    "chai": "^5.3.3",
+    "ethers": "^6.15.0",
     "forge-std": "github:foundry-rs/forge-std#v1.9.4",
     "hardhat": "^3.0.6",
-    "typescript": "~5.8.0",
-    "viem": "^2.37.11"
+    "mocha": "^11.7.4",
+    "typescript": "~5.8.0"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.4.0"

@@ -1,125 +1,104 @@
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
-import { parseEther } from "viem";
-
+import { expect } from "chai";
 import { network } from "hardhat";
 
+const { ethers } = await network.connect();
 describe("WLCAI", async function () {
-  const { viem } = await network.connect();
-  const publicClient = await viem.getPublicClient();
-
   it("Should deploy with correct name and symbol", async function () {
-    const wrappedETH = await viem.deployContract("WLCAI");
+    const wrappedETH = await ethers.deployContract("WLCAI");
 
-    assert.equal(await wrappedETH.read.name(), "Wrapped LCAI Votes");
-    assert.equal(await wrappedETH.read.symbol(), "WLCAIV");
-    assert.equal(await wrappedETH.read.decimals(), 18);
-    assert.equal(await wrappedETH.read.totalSupply(), 0n);
+    expect(await wrappedETH.name()).to.equal("Wrapped LCAI Votes");
+    expect(await wrappedETH.symbol()).to.equal("WLCAIV");
+    expect(await wrappedETH.decimals()).to.equal(18);
+    expect(await wrappedETH.totalSupply()).to.equal(0n);
   });
 
   it("Should deposit ETH and mint tokens", async function () {
-    const [user] = await viem.getWalletClients();
-    const wrappedETH = await viem.deployContract("WLCAI");
+    const [user] = await ethers.getSigners();
+    const wrappedETH = await ethers.deployContract("WLCAI");
 
-    const depositAmount = parseEther("1");
+    const depositAmount = ethers.parseEther("1");
 
     // Send ETH directly to contract via receive function
     await user.sendTransaction({
-      to: wrappedETH.address,
+      to: await wrappedETH.getAddress(),
       value: depositAmount,
     });
 
-    assert.equal(
-      await wrappedETH.read.balanceOf([user.account.address]),
-      depositAmount
-    );
-    assert.equal(await wrappedETH.read.totalSupply(), depositAmount);
-    assert.equal(await wrappedETH.read.totalETH(), depositAmount);
+    expect(await wrappedETH.balanceOf(user.address)).to.equal(depositAmount);
+    expect(await wrappedETH.totalSupply()).to.equal(depositAmount);
+    expect(await wrappedETH.totalETH()).to.equal(depositAmount);
   });
 
   it("Should withdraw ETH and burn tokens", async function () {
-    const [user] = await viem.getWalletClients();
-    const wrappedETH = await viem.deployContract("WLCAI");
+    const [user] = await ethers.getSigners();
+    const wrappedETH = await ethers.deployContract("WLCAI");
 
-    const depositAmount = parseEther("2");
-    const withdrawAmount = parseEther("1");
+    const depositAmount = ethers.parseEther("2");
+    const withdrawAmount = ethers.parseEther("1");
 
     // Deposit first
     await user.sendTransaction({
-      to: wrappedETH.address,
+      to: await wrappedETH.getAddress(),
       value: depositAmount,
     });
 
     // Withdraw
-    await wrappedETH.write.withdraw([withdrawAmount], {
-      account: user.account,
-    });
+    await wrappedETH.withdraw(withdrawAmount);
 
     // Check token balance decreased
-    assert.equal(
-      await wrappedETH.read.balanceOf([user.account.address]),
+    expect(await wrappedETH.balanceOf(user.address)).eq(
       depositAmount - withdrawAmount
     );
-    assert.equal(
-      await wrappedETH.read.totalSupply(),
-      depositAmount - withdrawAmount
-    );
+    expect(await wrappedETH.totalSupply()).eq(depositAmount - withdrawAmount);
   });
 
   it("Should support delegation for governance", async function () {
-    const [user, delegate] = await viem.getWalletClients();
-    const wrappedETH = await viem.deployContract("WLCAI");
+    const [user, delegate] = await ethers.getSigners();
+    const wrappedETH = await ethers.deployContract("WLCAI");
 
-    const depositAmount = parseEther("10");
+    const depositAmount = ethers.parseEther("10");
 
     // Deposit and delegate
     await user.sendTransaction({
-      to: wrappedETH.address,
+      to: await wrappedETH.getAddress(),
       value: depositAmount,
     });
 
-    await wrappedETH.write.delegate([delegate.account.address], {
-      account: user.account,
-    });
+    await wrappedETH.delegate(delegate.address);
 
     // Check voting power
-    assert.equal(
-      await wrappedETH.read.getVotes([delegate.account.address]),
-      depositAmount
-    );
-    assert.equal(await wrappedETH.read.getVotes([user.account.address]), 0n);
+    expect(await wrappedETH.getVotes(delegate.address)).eq(depositAmount);
+    expect(await wrappedETH.getVotes(user.address)).eq(0n);
   });
 
   it("Should maintain 1:1 ratio between totalSupply and totalETH", async function () {
-    const [user1, user2] = await viem.getWalletClients();
-    const wrappedETH = await viem.deployContract("WLCAI");
+    const [user1, user2] = await ethers.getSigners();
+    const wrappedETH = await ethers.deployContract("WLCAI");
 
     // Multiple deposits
     await user1.sendTransaction({
-      to: wrappedETH.address,
-      value: parseEther("1"),
+      to: await wrappedETH.getAddress(),
+      value: ethers.parseEther("1"),
     });
 
     await user2.sendTransaction({
-      to: wrappedETH.address,
-      value: parseEther("2"),
+      to: await wrappedETH.getAddress(),
+      value: ethers.parseEther("2"),
     });
 
-    const totalSupply = await wrappedETH.read.totalSupply();
-    const totalETH = await wrappedETH.read.totalETH();
+    const totalSupply = await wrappedETH.totalSupply();
+    const totalETH = await wrappedETH.totalETH();
 
-    assert.equal(totalSupply, totalETH);
-    assert.equal(totalSupply, parseEther("3"));
+    expect(totalSupply).eq(totalETH);
+    expect(totalSupply).eq(ethers.parseEther("3"));
 
     // After withdrawal
-    await wrappedETH.write.withdraw([parseEther("0.5")], {
-      account: user1.account,
-    });
+    await wrappedETH.withdraw(ethers.parseEther("0.5"));
 
-    const newTotalSupply = await wrappedETH.read.totalSupply();
-    const newTotalETH = await wrappedETH.read.totalETH();
+    const newTotalSupply = await wrappedETH.totalSupply();
+    const newTotalETH = await wrappedETH.totalETH();
 
-    assert.equal(newTotalSupply, newTotalETH);
-    assert.equal(newTotalSupply, parseEther("2.5"));
+    expect(newTotalSupply).eq(newTotalETH);
+    expect(newTotalSupply).eq(ethers.parseEther("2.5"));
   });
 });
