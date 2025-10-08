@@ -9,7 +9,7 @@ A comprehensive decentralized governance system built with OpenZeppelin Governor
 - **`LCAIGovernor.sol`** - Main governance contract with proposal creation, voting, and execution
 - **`LCAITimeLock.sol`** - Timelock controller for delayed execution of approved proposals
 - **`WLCAI.sol`** - ETH-backed governance token with 1:1 ETH deposits and withdrawals
-- **`ManualVotesStrategy.sol`** - Admin-controlled voting power assignment system
+- **`PresaleVotingPower.sol`** - Admin-controlled voting power assignment system
 - **`Counter.sol`** - Example target contract for testing governance actions
 
 ### Governance Features
@@ -61,7 +61,7 @@ await wLCAI.write.delegate([voterAddress], { account: user });
 - Withdraw ETH anytime by burning tokens
 - No token economics - direct ETH commitment
 
-### 3. Manual Votes Strategy (`ManualVotesStrategy.sol`)
+### 3. Manual Votes Strategy (`PresaleVotingPower.sol`)
 
 **Admin-controlled voting power assignment**
 
@@ -219,7 +219,7 @@ await wLCAI.write.withdraw([parseEther("5")], { account: user }); // Withdraw 5 
 
 ```typescript
 // 1. Deploy with manual voting strategy
-const votesStrategy = await viem.deployContract("ManualVotesStrategy");
+const votesStrategy = await viem.deployContract("PresaleVotingPower");
 const governor = await viem.deployContract("LCAIGovernor", [
   votesStrategy.address,
   timelock.address,
@@ -266,7 +266,7 @@ The project supports multiple networks:
 ### Access Controls
 
 - Governor contract controls timelock proposer/executor roles
-- ManualVotesStrategy owner can update voting power
+- PresaleVotingPower owner can update voting power
 - Multi-sig recommended for production admin functions
 
 ## 🤝 What You Can Do With This System

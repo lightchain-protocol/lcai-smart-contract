@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { network } from "hardhat";
 import { LCAIGovernor } from "../types/ethers-contracts/LCAIGovernor.js";
 import { Counter } from "../types/ethers-contracts/Counter.js";
-import { ManualVotesStrategy } from "../types/ethers-contracts/ManualVotesStrategy.js";
+import { PresaleVotingPower } from "../types/ethers-contracts/PresaleVotingPower.js";
 
 enum ProposalState {
   Pending,
@@ -175,9 +175,9 @@ describe("LCAIGovernor", function () {
     return { targets, values, calldatas };
   }
 
-  // Helper function to deploy governance contracts with ManualVotesStrategy
+  // Helper function to deploy governance contracts with PresaleVotingPower
   async function deployManualGovernanceContracts(minDelay: bigint = 14400n) {
-    const votesStrategy = await ethers.deployContract("ManualVotesStrategy");
+    const votesStrategy = await ethers.deployContract("PresaleVotingPower");
     const timelock = await ethers.deployContract("LCAITimeLock", [
       minDelay,
       [], // proposers (will be set to governor)
@@ -195,9 +195,9 @@ describe("LCAIGovernor", function () {
     return { votesStrategy, timelock, governor, counter, minDelay };
   }
 
-  // Helper function to set voting power for multiple accounts using ManualVotesStrategy
+  // Helper function to set voting power for multiple accounts using PresaleVotingPower
   async function setVotingPowers(
-    votesStrategy: ManualVotesStrategy,
+    votesStrategy: PresaleVotingPower,
     votingPowers: Array<{ voter: any; amount: string }>
   ): Promise<void> {
     const accounts = votingPowers.map((vp) => vp.voter.address);
@@ -377,11 +377,11 @@ describe("LCAIGovernor", function () {
   });
 
   // ===== MANUAL VOTES STRATEGY TESTS =====
-  // These tests verify governance functionality using ManualVotesStrategy
+  // These tests verify governance functionality using PresaleVotingPower
   // instead of token-based voting, allowing admin-controlled voting power
 
-  it("Should work with ManualVotesStrategy for voting power", async function () {
-    // Deploy contracts with ManualVotesStrategy
+  it("Should work with PresaleVotingPower for voting power", async function () {
+    // Deploy contracts with PresaleVotingPower
     const { votesStrategy, timelock, governor, counter, minDelay } =
       await deployManualGovernanceContracts();
 
@@ -452,8 +452,8 @@ describe("LCAIGovernor", function () {
     expect(executedState).to.equal(ProposalState.Executed);
   });
 
-  it("Should respect quorum with ManualVotesStrategy", async function () {
-    // Deploy contracts with ManualVotesStrategy
+  it("Should respect quorum with PresaleVotingPower", async function () {
+    // Deploy contracts with PresaleVotingPower
     const { votesStrategy, timelock, governor, counter } =
       await deployManualGovernanceContracts(60n);
 
@@ -500,7 +500,7 @@ describe("LCAIGovernor", function () {
   });
 
   it("Should allow admin to update voting power dynamically", async function () {
-    // Deploy contracts with ManualVotesStrategy
+    // Deploy contracts with PresaleVotingPower
     const { votesStrategy, timelock, governor, counter } =
       await deployManualGovernanceContracts(60n);
 
@@ -555,8 +555,8 @@ describe("LCAIGovernor", function () {
     expect(finalState).to.equal(ProposalState.Succeeded);
   });
 
-  it("Should prevent delegation in ManualVotesStrategy", async function () {
-    // Deploy ManualVotesStrategy
+  it("Should prevent delegation in PresaleVotingPower", async function () {
+    // Deploy PresaleVotingPower
     const { votesStrategy } = await deployManualGovernanceContracts();
 
     // Try to delegate (should fail)

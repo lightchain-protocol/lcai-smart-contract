@@ -13,17 +13,17 @@ async function main() {
   ]);
   console.log("Timelock deployed to:", await timelock.getAddress());
 
-  const manualVotesStrategy = await ethers.deployContract(
-    "ManualVotesStrategy",
+  const PresaleVotingPower = await ethers.deployContract(
+    "PresaleVotingPower",
     []
   );
   console.log(
-    "ManualVotesStrategy deployed to:",
-    await manualVotesStrategy.getAddress()
+    "PresaleVotingPower deployed to:",
+    await PresaleVotingPower.getAddress()
   );
 
   const governor = await ethers.deployContract("LCAIGovernor", [
-    await manualVotesStrategy.getAddress(),
+    await PresaleVotingPower.getAddress(),
     await timelock.getAddress(),
   ]);
   console.log("Governor deployed to:", await governor.getAddress());
@@ -49,7 +49,7 @@ async function main() {
     });
   }
 
-  await manualVotesStrategy.setVotingPowerBatch(
+  await PresaleVotingPower.setVotingPowerBatch(
     votingPower.map((vp) => vp.voter),
     votingPower.map((vp) => ethers.parseEther(vp.amount))
   );

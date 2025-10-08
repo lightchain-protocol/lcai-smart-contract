@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/governance/utils/IVotes.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
- * @title ManualVotesStrategy
+ * @title PresaleVotingPower
  * @dev Implementation of IVotes interface with manual voting power assignment and disabled delegation
  * @notice This contract allows an admin to manually set voting power for addresses
  * Delegation functionality is completely disabled for security/control purposes
  */
-contract ManualVotesStrategy is IVotes, Ownable {
+contract PresaleVotingPower is IVotes, Ownable {
     // Mapping to store voting power for each address
     mapping(address => uint256) private _votingPower;
 
@@ -45,7 +45,7 @@ contract ManualVotesStrategy is IVotes, Ownable {
     ) external onlyOwner {
         require(
             account != address(0),
-            "ManualVotesStrategy: cannot set voting power for zero address"
+            "PresaleVotingPower: cannot set voting power for zero address"
         );
 
         uint256 oldAmount = _votingPower[account];
@@ -68,11 +68,11 @@ contract ManualVotesStrategy is IVotes, Ownable {
     ) external onlyOwner {
         require(
             accounts.length == amounts.length,
-            "ManualVotesStrategy: accounts and amounts arrays must have the same length"
+            "PresaleVotingPower: accounts and amounts arrays must have the same length"
         );
         require(
             accounts.length > 0,
-            "ManualVotesStrategy: arrays cannot be empty"
+            "PresaleVotingPower: arrays cannot be empty"
         );
 
         for (uint256 i = 0; i < accounts.length; i++) {
@@ -81,7 +81,7 @@ contract ManualVotesStrategy is IVotes, Ownable {
 
             require(
                 account != address(0),
-                "ManualVotesStrategy: cannot set voting power for zero address"
+                "PresaleVotingPower: cannot set voting power for zero address"
             );
 
             uint256 oldAmount = _votingPower[account];
@@ -107,14 +107,12 @@ contract ManualVotesStrategy is IVotes, Ownable {
 
     /**
      * @dev Returns the voting power of an account at a specific timepoint
-     * @notice For simplicity, this returns the same as getVotes (no historical checkpointing)
      * @param account The address to query
-     * @param timepoint The timepoint to query (ignored in this implementation)
      * @return The voting power of the account
      */
     function getPastVotes(
         address account,
-        uint256 timepoint
+        uint256
     ) external view override returns (uint256) {
         // For simplicity, we don't implement historical checkpointing
         // This could be enhanced with checkpoint functionality if needed
@@ -124,11 +122,10 @@ contract ManualVotesStrategy is IVotes, Ownable {
     /**
      * @dev Returns the total supply of voting power at a specific timepoint
      * @notice For simplicity, this returns the current total supply
-     * @param timepoint The timepoint to query (ignored in this implementation)
      * @return The total supply of voting power
      */
     function getPastTotalSupply(
-        uint256 timepoint
+        uint256
     ) external view override returns (uint256) {
         // For simplicity, we don't implement historical checkpointing
         return _totalSupply;
@@ -136,40 +133,30 @@ contract ManualVotesStrategy is IVotes, Ownable {
 
     /**
      * @dev Delegation is disabled - this function always reverts
-     * @param delegatee The address to delegate to (ignored)
      */
-    function delegate(address delegatee) external pure override {
+    function delegate(address) external pure override {
         revert("Delegation disabled");
     }
 
     /**
      * @dev Delegation by signature is disabled - this function always reverts
-     * @param delegatee The address to delegate to (ignored)
-     * @param nonce The nonce (ignored)
-     * @param expiry The expiry timestamp (ignored)
-     * @param v The recovery byte (ignored)
-     * @param r Half of the ECDSA signature pair (ignored)
-     * @param s Half of the ECDSA signature pair (ignored)
      */
     function delegateBySig(
-        address delegatee,
-        uint256 nonce,
-        uint256 expiry,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
+        address,
+        uint256,
+        uint256,
+        uint8,
+        bytes32,
+        bytes32
     ) external pure override {
         revert("Delegation disabled");
     }
 
     /**
      * @dev Returns the delegate of an account - always returns address(0) since delegation is disabled
-     * @param account The address to query
      * @return Always returns address(0)
      */
-    function delegates(
-        address account
-    ) external pure override returns (address) {
+    function delegates(address) external pure override returns (address) {
         return address(0);
     }
 
