@@ -68,16 +68,58 @@ export function appendLog(filePath, entry) {
 export function logDeploymentsHistory(deploymentSet) {
     // Go up from scripts/logs/data/ to project root
     const projectRoot = path.resolve(__dirname, '..', '..', '..');
-    const filePath = path.join(projectRoot, 'data', 'deploymentsHistory.json');
+    const filePath = path.join(projectRoot, 'data', 'deployments', 'deploymentsHistory.json');
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
     }
 
-    // Replace entire deployment history with just the new deployment
-    const allDeployments = [deploymentSet];
+    // Load ABIs for deployment data
+    const abiPath = path.join(projectRoot, 'abi');
+    const contractsWithAbis = {};
+
+    for (const [contractName, contractInfo] of Object.entries(deploymentSet.contracts)) {
+        try {
+            const abiFilePath = path.join(abiPath, `${contractName}.json`);
+            if (fs.existsSync(abiFilePath)) {
+                const abiData = JSON.parse(fs.readFileSync(abiFilePath, 'utf8'));
+                contractsWithAbis[contractName] = {
+                    ...contractInfo,
+                    abiPath: abiFilePath,
+                    abiRaw: abiData
+                };
+            } else {
+                contractsWithAbis[contractName] = contractInfo;
+            }
+        } catch (error) {
+            console.warn(`   ⚠️ Failed to load ABI for ${contractName}:`, error.message);
+            contractsWithAbis[contractName] = contractInfo;
+        }
+    }
+
+    // Update deployment data with ABIs
+    const fullDeploymentData = {
+        ...deploymentSet,
+        contracts: contractsWithAbis,
+        abiPath: abiPath
+    };
+
+    // Load existing deployments or start with empty array
+    let allDeployments = [];
+    if (fs.existsSync(filePath)) {
+        try {
+            allDeployments = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        } catch (e) {
+            console.warn("Could not read existing deployments, starting fresh");
+            allDeployments = [];
+        }
+    }
+
+    // Append new deployment to existing history
+    allDeployments.push(fullDeploymentData);
     fs.writeFileSync(filePath, JSON.stringify(allDeployments, null, 2));
     console.log("Logged deployment set to deploymentsHistory.json in the backend");
+
     // log it again in the lib/data directory within lcai-dao-smart-contract
     const libDataPath = path.join(projectRoot, 'lib', 'data', 'contractsData.json');
     const libDataDir = path.dirname(libDataPath);
@@ -87,7 +129,18 @@ export function logDeploymentsHistory(deploymentSet) {
     }
     fs.writeFileSync(libDataPath, JSON.stringify(allDeployments, null, 2));
     console.log("Logged deployment set to contractsData.json in lib/data");
-    console.log(`Logged deployment set to ${filePath} and ${libDataPath}`);
+
+    // Also save to frontend lcai-chat directory
+    const frontendDataPath = path.join(projectRoot, '..', 'lcai-chat', 'lib', 'data', 'deploymentsHistory.json');
+    const frontendDataDir = path.dirname(frontendDataPath);
+
+    if (!fs.existsSync(frontendDataDir)) {
+        fs.mkdirSync(frontendDataDir, { recursive: true });
+    }
+    fs.writeFileSync(frontendDataPath, JSON.stringify(allDeployments, null, 2));
+    console.log("Logged deployment set to frontend lcai-chat/lib/data/deploymentsHistory.json");
+
+    console.log(`Logged deployment set to ${filePath}, ${libDataPath}, and ${frontendDataPath}`);
 }
 
 
@@ -119,7 +172,7 @@ export function appendTransactionLog(entry) {
 /**
  * Logs chat utility deployment to multiple locations in lcai-dao-smart-contract:
  * - data/deployments/chatUtilitydeploymentsHistory.json (appends to history)
- * - lib/data/chatUtilitycontractsData.json (replaces with latest)
+ * - lcai-chat/lib/data/chatUtilitycontractsData.json (replaces with latest)
  * @param {object} deploymentData - The deployment data to log.
  */
 export function logChatUtilityDeployment(deploymentData) {
@@ -150,21 +203,13 @@ export function logChatUtilityDeployment(deploymentData) {
     fs.writeFileSync(historyPath, JSON.stringify(history, jsonSerializer, 2));
     console.log(`📊 Deployment history logged to: ${historyPath}`);
 
-    // 2. Save to lib/data directory (latest deployment only)
-    const dataPath = path.join(projectRoot, 'lib', 'data', 'chatUtilitycontractsData.json');
-    const dataDir = path.dirname(dataPath);
-    if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
+    // 2. Also save to frontend lcai-chat directory
+    const frontendDataPath = path.join(projectRoot, '..', 'lcai-chat', 'lib', 'data', 'chatUtilitycontractsData.json');
+    const frontendDataDir = path.dirname(frontendDataPath);
+
+    if (!fs.existsSync(frontendDataDir)) {
+        fs.mkdirSync(frontendDataDir, { recursive: true });
     }
     fs.writeFileSync(frontendDataPath, JSON.stringify(deploymentData, jsonSerializer, 2));
     console.log(`📦 Frontend data saved to: ${frontendDataPath}`);
-
-    // 3. Save to deployments directory (latest deployment only)
-    const deploymentPath = path.resolve('deployments/chat-utility-deployment.json');
-    const deploymentsDir = path.dirname(deploymentPath);
-    if (!fs.existsSync(deploymentsDir)) {
-        fs.mkdirSync(deploymentsDir, { recursive: true });
-    }
-    fs.writeFileSync(deploymentPath, JSON.stringify(deploymentData, jsonSerializer, 2));
-    console.log(`💾 Deployment info saved to: ${deploymentPath}`);
 }
