@@ -1,6 +1,5 @@
 //path: lcai-dao-smart-contract/scripts/deploy-smart-contracts.mjs
-import hre from "hardhat";
-const { ethers } = hre;
+import { network } from "hardhat";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -12,7 +11,7 @@ import { saveAbi } from './abi/saveAbi.mjs';
 import { printDeployingContract, printExplorerContractLink } from './logs/console/console_logger.mjs';
 
 // -------------------- Deployment History Logging --------------------
-import { logChatUtilityDeployment, logDeploymentsHistory } from './logs/data/data_logger.mjs';
+import { logDeploymentsHistory } from './logs/data/data_logger.mjs';
 
 // -------------------- Role Assignment & Funding --------------------
 import { RoleAssigner } from './roles/assignRoles.mjs';
@@ -32,22 +31,24 @@ const __filename = fileURLToPath(
     import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Configuration
-const CONFIG = {
-    // Chat Utility Configuration
-    initialChatFee: ethers.parseEther("0.001"), // 0.001 LCAI per message
-    baseReward: ethers.parseEther("0.01"), // 0.01 LCAI per chat reward
-    epochDuration: 7 * 24 * 60 * 60, // 7 days
-    maxRewardPerEpoch: ethers.parseEther("1000"), // 1000 LCAI max per epoch
-
-    // DAO Configuration
-    timelockDelay: 0, // 0 seconds for testing (use 2 days for production)
-    votingDelay: 1, // 1 block delay
-    votingPeriod: 100, // 100 blocks voting period
-    quorumNumerator: 4, // 4% quorum
-};
-
 async function main() {
+    // Get ethers from network
+    const { ethers } = await network.connect();
+
+    // Configuration
+    const CONFIG = {
+        // Chat Utility Configuration
+        initialChatFee: ethers.parseEther("0.001"), // 0.001 LCAI per message
+        baseReward: ethers.parseEther("0.01"), // 0.01 LCAI per chat reward
+        epochDuration: 7 * 24 * 60 * 60, // 7 days
+        maxRewardPerEpoch: ethers.parseEther("1000"), // 1000 LCAI max per epoch
+
+        // DAO Configuration
+        timelockDelay: 0, // 0 seconds for testing (use 2 days for production)
+        votingDelay: 1, // 1 block delay
+        votingPeriod: 100, // 100 blocks voting period
+        quorumNumerator: 4, // 4% quorum
+    };
     console.log("🚀 Deploying Complete DAO + Chat Utility System");
     console.log("================================================");
     console.log("");
@@ -56,16 +57,15 @@ async function main() {
     const [deployer] = await ethers.getSigners();
 
     // Get network info
-    const network = await hre.network.name;
-    const chainIdHex = await hre.network.provider.send('eth_chainId');
-    const chainId = parseInt(chainIdHex, 16);
-    console.log(`📡 Deploying to network: ${network} (chainId: ${chainId})`);
+    const networkName = await network.name;
+    const chainId = 504; // lcaiTestnet chainId
+    console.log(`📡 Deploying to network: ${networkName} (chainId: ${chainId})`);
 
     // Get explorer URL from Hardhat config
     const hardhatConfig = await
     import ('../hardhat.config.js');
-    const networkConfig = hardhatConfig.default.networks[network] || {};
-    const explorerUrl = (networkConfig.explorer && networkConfig.explorer.url) || '';
+    const networkConfig = hardhatConfig.default.networks[networkName] || {};
+    const explorerUrl = (networkConfig.explorer && networkConfig.explorer.url) || 'https://testnet.lightscan.app';
 
     console.log(`👤 Deployer: ${deployer.address}`);
     const balance = await ethers.provider.getBalance(deployer.address);
@@ -81,7 +81,7 @@ async function main() {
     console.log(`   Quorum: ${CONFIG.quorumNumerator}%`);
     console.log("");
 
-    const roleAssigner = new RoleAssigner(deployer, explorerUrl);
+    const roleAssigner = new RoleAssigner(deployer, explorerUrl, ethers);
     const deploymentResults = {};
 
     // ==================== STEP 1: Deploy DAO Contracts ====================
@@ -118,10 +118,7 @@ async function main() {
     const LCAIGovernor = await ethers.getContractFactory("LCAIGovernor", deployer);
     const governor = await LCAIGovernor.deploy(
         presaleVotingPowerAddress, // voting token
-        timelockAddress, // timelock
-        CONFIG.votingDelay,
-        CONFIG.votingPeriod,
-        CONFIG.quorumNumerator
+        timelockAddress // timelock
     );
     await governor.waitForDeployment();
     const governorAddress = await governor.getAddress();
@@ -278,11 +275,11 @@ async function main() {
     const deploymentData = {
         deploymentId: Date.now().toString(),
         deployedBy: deployer.address,
-        network,
+        networkName,
         chainId,
         explorerUrl,
         deployedAt: new Date().toISOString(),
-        deploymentType: 'complete_dao_system',
+        deploymentType: 'LCAI_DAO',
         contracts: {
             PresaleVotingPower: {
                 name: 'PresaleVotingPower',
@@ -319,7 +316,6 @@ async function main() {
 
     // Log deployment data
     try {
-        logChatUtilityDeployment(deploymentData);
         logDeploymentsHistory(deploymentData);
         console.log("   📊 Deployment data logged successfully");
     } catch (error) {
