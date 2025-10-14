@@ -99,6 +99,58 @@ npm install
 npx hardhat compile
 ```
 
+### Environment Setup
+
+**Required:** Create a `.env` file in the project root to securely store your private keys and configuration:
+
+```bash
+# Copy the example environment file
+cp .env.example .env
+
+# Or create manually
+touch .env
+```
+
+**Edit your `.env` file** and replace the placeholder values:
+
+```bash
+# Required: Your wallet private key for deployments
+OWNER_WALLET_PRIVATE_KEY=0xYOUR_PRIVATE_KEY_HERE  # Replace with your actual private key
+
+# Optional: RPC URLs (uses defaults if not set)
+SEPOLIA_RPC_URL=https://rpc.sepolia.org
+LCAI_TESTNET_RPC_URL=https://light-testnet-rpc.lightchain.ai
+
+# Optional: Sepolia deployment (uses hardhat-keystore if not set)
+SEPOLIA_PRIVATE_KEY=0xYOUR_SEPOLIA_PRIVATE_KEY_HERE  # Replace if deploying to Sepolia
+```
+
+**💡 Tip:** The `.env.example` file contains detailed comments and security best practices.
+
+**Security Notes:**
+
+- ⚠️ **Never commit your `.env` file** - It's already in `.gitignore`
+- 🔐 **Keep your private keys secure** - Never share or expose them
+- 🔑 **Use separate wallets** for development and production
+- 💡 **Alternative:** Use `hardhat-keystore` for encrypted key storage
+
+**Getting Your Private Key:**
+
+1. **From MetaMask:** Settings → Security & Privacy → Reveal Private Key
+2. **From other wallets:** Check your wallet's export/backup options
+3. **For testing:** Use one of Hardhat's test accounts
+
+**Verify Setup:**
+
+```bash
+# Check if your environment is configured correctly
+npx hardhat console --network lcaiTestnet
+
+# In console, check your address
+> const [signer] = await ethers.getSigners();
+> await signer.getAddress();
+```
+
 ### Running Tests
 
 Execute the comprehensive test suite covering both voting strategies:
@@ -138,17 +190,35 @@ npx hardhat node
 npx hardhat ignition deploy ignition/modules/Counter.ts --network localhost
 ```
 
-### Testnet Deployment (Sepolia)
+### Testnet Deployment
 
-1. **Set up environment variables:**
+#### LCAI Testnet Deployment
+
+1. **Ensure `.env` is configured** with `OWNER_WALLET_PRIVATE_KEY` (see Environment Setup above)
+
+2. **Deploy to LCAI Testnet:**
 
 ```bash
-# Using hardhat-keystore (recommended)
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
+# Deploy governance system
+npx hardhat run scripts/deploy.ts --network lcaiTestnet
 
-# Or set environment variable
-export SEPOLIA_PRIVATE_KEY="your-private-key"
-export SEPOLIA_RPC_URL="your-rpc-endpoint"
+# Or use ignition
+npx hardhat ignition deploy ignition/modules/Counter.ts --network lcaiTestnet
+```
+
+#### Sepolia Testnet Deployment
+
+1. **Add Sepolia credentials to `.env`:**
+
+```bash
+SEPOLIA_PRIVATE_KEY=0x...
+SEPOLIA_RPC_URL=https://rpc.sepolia.org
+```
+
+Or use hardhat-keystore (recommended):
+
+```bash
+npx hardhat keystore set SEPOLIA_PRIVATE_KEY
 ```
 
 2. **Deploy to Sepolia:**
