@@ -1,4 +1,4 @@
-//path: scripts/deployment/deploy-chat-utility.mjs
+//path: lcai-dao-smart-contract/scripts/deploy-chat-utility.mjs
 import hre from "hardhat";
 const { ethers } = hre;
 import fs from "fs";

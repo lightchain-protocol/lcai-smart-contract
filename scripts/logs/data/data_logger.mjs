@@ -14,9 +14,9 @@ const __dirname = path.dirname(__filename);
  * @returns {Promise<void>} - A promise that resolves when the hash is appended.
  */
 export async function appendHashToFile(newHash) {
-    const __dirname = path.dirname(new URL(
-        import.meta.url).pathname);
-    const hashesPath = path.join(__dirname, '../../data/ipfs/ipfs_hashes.json');
+    // Go up from scripts/logs/data/ to project root
+    const projectRoot = path.resolve(__dirname, '..', '..', '..');
+    const hashesPath = path.join(projectRoot, 'data', 'ipfs', 'ipfs_hashes.json');
     let hashes = [];
     try {
         const data = await fsp.readFile(hashesPath, 'utf-8');
@@ -66,7 +66,9 @@ export function appendLog(filePath, entry) {
  * The file is replaced entirely with just the new deployment set.
  */
 export function logDeploymentsHistory(deploymentSet) {
-    const filePath = path.resolve('data/deploymentsHistory.json');
+    // Go up from scripts/logs/data/ to project root
+    const projectRoot = path.resolve(__dirname, '..', '..', '..');
+    const filePath = path.join(projectRoot, 'data', 'deploymentsHistory.json');
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
@@ -76,16 +78,16 @@ export function logDeploymentsHistory(deploymentSet) {
     const allDeployments = [deploymentSet];
     fs.writeFileSync(filePath, JSON.stringify(allDeployments, null, 2));
     console.log("Logged deployment set to deploymentsHistory.json in the backend");
-    // log it again in the front end in lcai-chat/lib/data/contractsData.json
-    const frontEndPath = path.resolve('lcai-chat/lib/data/contractsData.json');
-    const frontEndDir = path.dirname(frontEndPath);
+    // log it again in the lib/data directory within lcai-dao-smart-contract
+    const libDataPath = path.join(projectRoot, 'lib', 'data', 'contractsData.json');
+    const libDataDir = path.dirname(libDataPath);
 
-    if (!fs.existsSync(frontEndDir)) {
-        fs.mkdirSync(frontEndDir, { recursive: true });
+    if (!fs.existsSync(libDataDir)) {
+        fs.mkdirSync(libDataDir, { recursive: true });
     }
-    fs.writeFileSync(frontEndPath, JSON.stringify(allDeployments, null, 2));
-    console.log("Logged deployment set to contractsData.json in the front end");
-    console.log(`Logged deployment set to ${filePath} and ${frontEndPath}`);
+    fs.writeFileSync(libDataPath, JSON.stringify(allDeployments, null, 2));
+    console.log("Logged deployment set to contractsData.json in lib/data");
+    console.log(`Logged deployment set to ${filePath} and ${libDataPath}`);
 }
 
 
@@ -95,7 +97,9 @@ export function logDeploymentsHistory(deploymentSet) {
  * @param {object} entry - The transaction log entry to append.
  */
 export function appendTransactionLog(entry) {
-    const txFile = path.resolve('data/transactions.json');
+    // Go up from scripts/logs/data/ to project root
+    const projectRoot = path.resolve(__dirname, '..', '..', '..');
+    const txFile = path.join(projectRoot, 'data', 'transactions.json');
     const dir = path.dirname(txFile);
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });

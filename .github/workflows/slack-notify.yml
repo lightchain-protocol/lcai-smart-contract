@@ -28,7 +28,11 @@ jobs:
       - name: Build push payload (safe JSON)
         if: ${{ github.event_name == 'push' }}
         run: |
-          echo '${{ toJson(github.event.commits) }}' > commits.json
+          # Write commits to file safely
+          cat > commits.json << 'EOF'
+          ${{ toJson(github.event.commits) }}
+          EOF
+          
           LIMIT=10
           COUNT=$(jq 'length' commits.json)
 
