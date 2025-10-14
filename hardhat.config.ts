@@ -43,7 +43,12 @@ const config: HardhatUserConfig = {
     lcaiTestnet: {
       type: "http",
       chainType: "l1",
+      chainId: 504,
       url: "https://light-testnet-rpc.lightchain.ai",
+      explorer: {
+        name: 'Lightchain Testnet Explorer',
+        url: 'https://testnet.lightscan.app',
+      },
       accounts: process.env.OWNER_WALLET_PRIVATE_KEY 
         ? [process.env.OWNER_WALLET_PRIVATE_KEY]
         : [],
