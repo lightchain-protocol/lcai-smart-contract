@@ -2,13 +2,11 @@
  * Role assignment utilities for contract deployment
  */
 
-import pkg from 'hardhat';
-const { ethers } = pkg;
-
 export class RoleAssigner {
-    constructor(deployer, explorerUrl) {
+    constructor(deployer, explorerUrl, ethers) {
         this.deployer = deployer;
         this.explorerUrl = explorerUrl;
+        this.ethers = ethers;
     }
 
     /**
@@ -20,7 +18,7 @@ export class RoleAssigner {
         console.log('   🔧 Configuring TimelockController roles for ModelDAO...');
 
         try {
-            const timelockContract = await ethers.getContractAt('TimelockController', timelockAddress, this.deployer);
+            const timelockContract = await this.ethers.getContractAt('TimelockController', timelockAddress, this.deployer);
 
             const PROPOSER_ROLE = await timelockContract.PROPOSER_ROLE();
             const EXECUTOR_ROLE = await timelockContract.EXECUTOR_ROLE();
@@ -76,7 +74,7 @@ export class RoleAssigner {
         // Update ModelDAORewardsFacet's modelDAO field
         console.log('   🔧 Updating ModelDAORewardsFacet modelDAO field...');
         try {
-            const modelDAORewardsFacetContract = await ethers.getContractAt('ModelDAORewardsFacet', modelDAORewardsFacetAddress, this.deployer);
+            const modelDAORewardsFacetContract = await this.ethers.getContractAt('ModelDAORewardsFacet', modelDAORewardsFacetAddress, this.deployer);
 
             console.log(`   🔍 Current ModelDAORewardsFacet modelDAO: ${await modelDAORewardsFacetContract.modelDAO()}`);
             console.log(`   🔍 Updating modelDAO to new ModelDAO: ${modelDAOAddress}`);
@@ -101,7 +99,7 @@ export class RoleAssigner {
         // Transfer ModelDAORewardsFacet ownership to ModelDAO
         console.log('   🔧 Transferring ModelDAORewardsFacet ownership to ModelDAO...');
         try {
-            const modelDAORewardsFacetContract = await ethers.getContractAt('ModelDAORewardsFacet', modelDAORewardsFacetAddress, this.deployer);
+            const modelDAORewardsFacetContract = await this.ethers.getContractAt('ModelDAORewardsFacet', modelDAORewardsFacetAddress, this.deployer);
 
             console.log(`   🔍 Current ModelDAORewardsFacet owner: ${await modelDAORewardsFacetContract.owner()}`);
             console.log(`   🔍 Transferring ownership to ModelDAO: ${modelDAOAddress}`);
@@ -134,8 +132,8 @@ export class RoleAssigner {
         console.log('   💰 Funding ModelDAO contract for governance transactions...');
 
         try {
-            const amount = ethers.parseEther(fundingAmount);
-            console.log(`   🔗 Sending ${ethers.formatEther(amount)} LCAI to ModelDAO...`);
+            const amount = this.ethers.parseEther(fundingAmount);
+            console.log(`   🔗 Sending ${this.ethers.formatEther(amount)} LCAI to ModelDAO...`);
 
             const fundTx = await this.deployer.sendTransaction({
                 to: modelDAOAddress,
@@ -170,8 +168,8 @@ export class RoleAssigner {
         console.log('   💰 Funding ModelDAORewardsFacet contract for reward distributions...');
 
         try {
-            const amount = ethers.parseEther(fundingAmount);
-            console.log(`   🔗 Sending ${ethers.formatEther(amount)} ETH to ModelDAORewardsFacet...`);
+            const amount = this.ethers.parseEther(fundingAmount);
+            console.log(`   🔗 Sending ${this.ethers.formatEther(amount)} ETH to ModelDAORewardsFacet...`);
 
             const fundTx = await this.deployer.sendTransaction({
                 to: modelDAORewardsFacetAddress,
@@ -188,7 +186,7 @@ export class RoleAssigner {
 
                 // Log the contract balance after funding
                 const contractBalance = await this.deployer.provider.getBalance(modelDAORewardsFacetAddress);
-                console.log(`   💰 ModelDAORewardsFacet contract balance: ${ethers.formatEther(contractBalance)} ETH`);
+                console.log(`   💰 ModelDAORewardsFacet contract balance: ${this.ethers.formatEther(contractBalance)} ETH`);
 
                 return true;
             } else {
@@ -212,8 +210,8 @@ export class RoleAssigner {
         console.log('   💰 Funding LCAIChatUtility contract for reward distributions...');
 
         try {
-            const amount = ethers.parseEther(fundingAmount);
-            console.log(`   🔗 Sending ${ethers.formatEther(amount)} LCAI to LCAIChatUtility...`);
+            const amount = this.ethers.parseEther(fundingAmount);
+            console.log(`   🔗 Sending ${this.ethers.formatEther(amount)} LCAI to LCAIChatUtility...`);
 
             const fundTx = await this.deployer.sendTransaction({
                 to: chatUtilityAddress,
@@ -230,7 +228,7 @@ export class RoleAssigner {
 
                 // Log the contract balance after funding
                 const contractBalance = await this.deployer.provider.getBalance(chatUtilityAddress);
-                console.log(`   💰 LCAIChatUtility contract balance: ${ethers.formatEther(contractBalance)} LCAI`);
+                console.log(`   💰 LCAIChatUtility contract balance: ${this.ethers.formatEther(contractBalance)} LCAI`);
 
                 return true;
             } else {
@@ -253,8 +251,8 @@ export class RoleAssigner {
         console.log('   💰 Funding TimelockController contract for reward distributions...');
 
         try {
-            const amount = ethers.parseEther(fundingAmount);
-            console.log(`   🔗 Sending ${ethers.formatEther(amount)} ETH to TimelockController...`);
+            const amount = this.ethers.parseEther(fundingAmount);
+            console.log(`   🔗 Sending ${this.ethers.formatEther(amount)} ETH to TimelockController...`);
 
             const fundTx = await this.deployer.sendTransaction({
                 to: timelockControllerAddress,
@@ -271,7 +269,7 @@ export class RoleAssigner {
 
                 // Log the contract balance after funding
                 const contractBalance = await this.deployer.provider.getBalance(timelockControllerAddress);
-                console.log(`   💰 TimelockController contract balance: ${ethers.formatEther(contractBalance)} ETH`);
+                console.log(`   💰 TimelockController contract balance: ${this.ethers.formatEther(contractBalance)} ETH`);
 
                 return true;
             } else {
@@ -293,7 +291,7 @@ export class RoleAssigner {
         console.log('   🔍 Verifying TimelockController roles...');
 
         try {
-            const timelockContract = await ethers.getContractAt('TimelockController', timelockAddress, this.deployer);
+            const timelockContract = await this.ethers.getContractAt('TimelockController', timelockAddress, this.deployer);
 
             const PROPOSER_ROLE = await timelockContract.PROPOSER_ROLE();
             const EXECUTOR_ROLE = await timelockContract.EXECUTOR_ROLE();
@@ -318,7 +316,7 @@ export class RoleAssigner {
         console.log('   🔍 Verifying ModelDAORewardsFacet initial configuration...');
 
         try {
-            const modelDAORewardsFacetContract = await ethers.getContractAt('ModelDAORewardsFacet', modelDAORewardsFacetAddress, this.deployer);
+            const modelDAORewardsFacetContract = await this.ethers.getContractAt('ModelDAORewardsFacet', modelDAORewardsFacetAddress, this.deployer);
 
             const daoAddress = await modelDAORewardsFacetContract.modelDAO();
             const ownerAddress = await modelDAORewardsFacetContract.owner();
@@ -343,7 +341,7 @@ export class RoleAssigner {
         console.log('   🔧 Configuring initial ModelDAO settings...');
 
         try {
-            const modelDAOContract = await ethers.getContractAt('ModelDAODiamond', modelDAOAddress, this.deployer);
+            const modelDAOContract = await this.ethers.getContractAt('ModelDAODiamond', modelDAOAddress, this.deployer);
 
             // Basic configuration verification
             const rewardVault = await modelDAOContract.rewardVault();
@@ -356,7 +354,7 @@ export class RoleAssigner {
             console.log(`   ✅ ModelDAO timelock: ${timelock}`);
             console.log(`   ✅ ModelDAO owner: ${owner}`);
             console.log(`   ✅ ModelDAO quorum numerator: ${quorumNumerator}%`);
-            console.log(`   ✅ ModelDAO chat fee: ${ethers.formatEther(chatFee)} LCAI`);
+            console.log(`   ✅ ModelDAO chat fee: ${this.ethers.formatEther(chatFee)} LCAI`);
 
             // Note: Presale participants are managed by ModelTreasury now
             // Validator registration is handled by the ModelDAOValidatorsFacet
@@ -378,7 +376,7 @@ export class RoleAssigner {
         console.log('   🔧 Configuring initial ModelDAORewardsFacet settings...');
 
         try {
-            const modelDAORewardsFacetContract = await ethers.getContractAt('ModelDAORewardsFacet', modelDAORewardsFacetAddress, this.deployer);
+            const modelDAORewardsFacetContract = await this.ethers.getContractAt('ModelDAORewardsFacet', modelDAORewardsFacetAddress, this.deployer);
 
             // Note: ModelDAORewardsFacet functions are now handled by the Diamond pattern
             // Basic configuration verification
@@ -404,7 +402,7 @@ export class RoleAssigner {
         console.log('   🔍 Verifying final ModelDAO configuration...');
 
         try {
-            const modelDAOContract = await ethers.getContractAt('ModelDAODiamond', modelDAOAddress, this.deployer);
+            const modelDAOContract = await this.ethers.getContractAt('ModelDAODiamond', modelDAOAddress, this.deployer);
 
             const rewardVault = await modelDAOContract.rewardVault();
             const timelock = await modelDAOContract.timelock();
@@ -415,7 +413,7 @@ export class RoleAssigner {
             console.log(`   ✅ ModelDAO timelock: ${timelock}`);
             console.log(`   ✅ ModelDAO owner: ${owner}`);
             console.log(`   ✅ ModelDAO quorum numerator: ${quorumNumerator}%`);
-            console.log(`   ✅ ModelDAO chat fee: ${ethers.formatEther(chatFee)} LCAI`);
+            console.log(`   ✅ ModelDAO chat fee: ${this.ethers.formatEther(chatFee)} LCAI`);
 
             return true;
         } catch (error) {
@@ -432,7 +430,7 @@ export class RoleAssigner {
         console.log('   🔍 Verifying final ModelDAORewardsFacet configuration...');
 
         try {
-            const modelDAORewardsFacetContract = await ethers.getContractAt('ModelDAORewardsFacet', modelDAORewardsFacetAddress, this.deployer);
+            const modelDAORewardsFacetContract = await this.ethers.getContractAt('ModelDAORewardsFacet', modelDAORewardsFacetAddress, this.deployer);
 
             const modelDAO = await modelDAORewardsFacetContract.modelDAO();
             const owner = await modelDAORewardsFacetContract.owner();
@@ -440,7 +438,7 @@ export class RoleAssigner {
 
             console.log(`   ✅ ModelDAORewardsFacet modelDAO: ${modelDAO}`);
             console.log(`   ✅ ModelDAORewardsFacet owner: ${owner}`);
-            console.log(`   ✅ ModelDAORewardsFacet contract balance: ${ethers.formatEther(contractBalance)} ETH`);
+            console.log(`   ✅ ModelDAORewardsFacet contract balance: ${this.ethers.formatEther(contractBalance)} ETH`);
             console.log('   💡 ModelDAORewardsFacet functionality is now handled by ModelDAODiamond');
 
             return true;
@@ -459,7 +457,7 @@ export class RoleAssigner {
         console.log(`   🔧 Granting EXECUTOR_ROLE to ${targetAddress}...`);
 
         try {
-            const timelockContract = await ethers.getContractAt('TimelockController', timelockAddress, this.deployer);
+            const timelockContract = await this.ethers.getContractAt('TimelockController', timelockAddress, this.deployer);
             const EXECUTOR_ROLE = await timelockContract.EXECUTOR_ROLE();
 
             // Check if target already has the role
@@ -494,7 +492,7 @@ export class RoleAssigner {
         console.log(`   🔍 Checking and fixing TimelockController roles for ${targetAddress}...`);
 
         try {
-            const timelockContract = await ethers.getContractAt('TimelockController', timelockAddress, this.deployer);
+            const timelockContract = await this.ethers.getContractAt('TimelockController', timelockAddress, this.deployer);
 
             const PROPOSER_ROLE = await timelockContract.PROPOSER_ROLE();
             const EXECUTOR_ROLE = await timelockContract.EXECUTOR_ROLE();
@@ -549,7 +547,7 @@ export class RoleAssigner {
         console.log(`   🔧 Granting PROPOSER_ROLE to ${targetAddress}...`);
 
         try {
-            const timelockContract = await ethers.getContractAt('TimelockController', timelockAddress, this.deployer);
+            const timelockContract = await this.ethers.getContractAt('TimelockController', timelockAddress, this.deployer);
             const PROPOSER_ROLE = await timelockContract.PROPOSER_ROLE();
 
             // Check if target already has the role
@@ -583,18 +581,18 @@ export class RoleAssigner {
         console.log(`   🔧 Enabling open execution for testing...`);
 
         try {
-            const timelockContract = await ethers.getContractAt('TimelockController', timelockAddress, this.deployer);
+            const timelockContract = await this.ethers.getContractAt('TimelockController', timelockAddress, this.deployer);
             const EXECUTOR_ROLE = await timelockContract.EXECUTOR_ROLE();
 
             // Check if open execution is already enabled
-            const hasRole = await timelockContract.hasRole(EXECUTOR_ROLE, ethers.ZeroAddress);
+            const hasRole = await timelockContract.hasRole(EXECUTOR_ROLE, this.ethers.ZeroAddress);
             if (hasRole) {
                 console.log(`   ✅ Open execution already enabled`);
                 return true;
             }
 
             // Grant the role to zero address (enables open execution)
-            const grantTx = await timelockContract.grantRole(EXECUTOR_ROLE, ethers.ZeroAddress);
+            const grantTx = await timelockContract.grantRole(EXECUTOR_ROLE, this.ethers.ZeroAddress);
             await grantTx.wait();
             console.log(`   ✅ Open execution enabled (zero address has EXECUTOR_ROLE)`);
 
@@ -618,8 +616,8 @@ export class RoleAssigner {
         console.log('   💰 Funding ModelTreasury contract for protocol operations...');
 
         try {
-            const amount = ethers.parseEther(fundingAmount);
-            console.log(`   🔗 Sending ${ethers.formatEther(amount)} ETH to ModelTreasury...`);
+            const amount = this.ethers.parseEther(fundingAmount);
+            console.log(`   🔗 Sending ${this.ethers.formatEther(amount)} ETH to ModelTreasury...`);
 
             const fundTx = await this.deployer.sendTransaction({
                 to: treasuryAddress,
@@ -636,7 +634,7 @@ export class RoleAssigner {
 
                 // Log the contract balance after funding
                 const contractBalance = await this.deployer.provider.getBalance(treasuryAddress);
-                console.log(`   💰 ModelTreasury contract balance: ${ethers.formatEther(contractBalance)} ETH`);
+                console.log(`   💰 ModelTreasury contract balance: ${this.ethers.formatEther(contractBalance)} ETH`);
 
                 return true;
             } else {
@@ -660,7 +658,7 @@ export class RoleAssigner {
         console.log('   🔧 Configuring initial ModelTreasury settings...');
 
         try {
-            const treasuryContract = await ethers.getContractAt('ModelTreasury', treasuryAddress, this.deployer);
+            const treasuryContract = await this.ethers.getContractAt('ModelTreasury', treasuryAddress, this.deployer);
 
             // Note: ModelTreasury functions require timelock permissions
             // For now, just verify basic configuration
@@ -672,7 +670,7 @@ export class RoleAssigner {
             console.log(`   ✅ ModelTreasury modelDAO: ${modelDAO}`);
             console.log(`   ✅ ModelTreasury timelock: ${timelock}`);
             console.log(`   ✅ ModelTreasury owner: ${owner}`);
-            console.log(`   ✅ ModelTreasury balance: ${ethers.formatEther(treasuryBalance)} ETH`);
+            console.log(`   ✅ ModelTreasury balance: ${this.ethers.formatEther(treasuryBalance)} ETH`);
 
             console.log('   💡 ModelTreasury allocations will be configured via governance proposals');
 
@@ -691,14 +689,14 @@ export class RoleAssigner {
         console.log('   🔧 Setting up presale allocations...');
 
         try {
-            const treasuryContract = await ethers.getContractAt('ModelTreasury', treasuryAddress, this.deployer);
+            const treasuryContract = await this.ethers.getContractAt('ModelTreasury', treasuryAddress, this.deployer);
 
             // Note: Presale allocations require timelock permissions
             // For now, just verify current state
             const totalPresaleAllocation = await treasuryContract.totalPresaleAllocation();
             const presaleParticipants = await treasuryContract.getAllPresaleParticipants();
 
-            console.log(`   ✅ Total presale allocation: ${ethers.formatEther(totalPresaleAllocation)} LCAI`);
+            console.log(`   ✅ Total presale allocation: ${this.ethers.formatEther(totalPresaleAllocation)} LCAI`);
             console.log(`   ✅ Presale participants count: ${presaleParticipants.length}`);
             console.log('   💡 Presale allocations will be configured via governance proposals');
 
@@ -718,7 +716,7 @@ export class RoleAssigner {
         console.log('   🔧 Configuring ModelUpgradeProxy...');
 
         try {
-            const upgradeProxyContract = await ethers.getContractAt('ModelUpgradeProxy', upgradeProxyAddress, this.deployer);
+            const upgradeProxyContract = await this.ethers.getContractAt('ModelUpgradeProxy', upgradeProxyAddress, this.deployer);
 
             // Verify the proxy is properly configured
             const modelDAO = await upgradeProxyContract.modelDAO();
@@ -749,7 +747,7 @@ export class RoleAssigner {
         console.log('   🔍 Verifying final ModelTreasury configuration...');
 
         try {
-            const treasuryContract = await ethers.getContractAt('ModelTreasury', treasuryAddress, this.deployer);
+            const treasuryContract = await this.ethers.getContractAt('ModelTreasury', treasuryAddress, this.deployer);
 
             const modelDAO = await treasuryContract.modelDAO();
             const timelock = await treasuryContract.timelock();
@@ -763,9 +761,9 @@ export class RoleAssigner {
             console.log(`   ✅ ModelTreasury modelDAO: ${modelDAO}`);
             console.log(`   ✅ ModelTreasury timelock: ${timelock}`);
             console.log(`   ✅ ModelTreasury owner: ${owner}`);
-            console.log(`   ✅ ModelTreasury total allocated: ${ethers.formatEther(totalAllocated)} ETH`);
-            console.log(`   ✅ ModelTreasury total presale allocation: ${ethers.formatEther(totalPresaleAllocation)} LCAI`);
-            console.log(`   ✅ ModelTreasury balance: ${ethers.formatEther(treasuryBalance)} ETH`);
+            console.log(`   ✅ ModelTreasury total allocated: ${this.ethers.formatEther(totalAllocated)} ETH`);
+            console.log(`   ✅ ModelTreasury total presale allocation: ${this.ethers.formatEther(totalPresaleAllocation)} LCAI`);
+            console.log(`   ✅ ModelTreasury balance: ${this.ethers.formatEther(treasuryBalance)} ETH`);
             console.log(`   ✅ ModelTreasury allocation count: ${allocationNames.length}`);
             console.log(`   ✅ ModelTreasury presale participants: ${presaleParticipants.length}`);
 
@@ -784,7 +782,7 @@ export class RoleAssigner {
         console.log('   🔍 Verifying final ModelUpgradeProxy configuration...');
 
         try {
-            const upgradeProxyContract = await ethers.getContractAt('ModelUpgradeProxy', upgradeProxyAddress, this.deployer);
+            const upgradeProxyContract = await this.ethers.getContractAt('ModelUpgradeProxy', upgradeProxyAddress, this.deployer);
 
             const modelDAO = await upgradeProxyContract.modelDAO();
             const owner = await upgradeProxyContract.owner();
@@ -792,7 +790,7 @@ export class RoleAssigner {
 
             console.log(`   ✅ ModelUpgradeProxy modelDAO: ${modelDAO}`);
             console.log(`   ✅ ModelUpgradeProxy owner: ${owner}`);
-            console.log(`   ✅ ModelUpgradeProxy balance: ${ethers.formatEther(contractBalance)} ETH`);
+            console.log(`   ✅ ModelUpgradeProxy balance: ${this.ethers.formatEther(contractBalance)} ETH`);
 
             return true;
         } catch (error) {
@@ -809,7 +807,7 @@ export class RoleAssigner {
         console.log('   🔍 Verifying final ModelDAO configuration...');
 
         try {
-            const modelDAOContract = await ethers.getContractAt('ModelDAODiamond', modelDAOAddress, this.deployer);
+            const modelDAOContract = await this.ethers.getContractAt('ModelDAODiamond', modelDAOAddress, this.deployer);
 
             const rewardVault = await modelDAOContract.rewardVault();
             const timelock = await modelDAOContract.timelock();
@@ -822,8 +820,8 @@ export class RoleAssigner {
             console.log(`   ✅ ModelDAO timelock: ${timelock}`);
             console.log(`   ✅ ModelDAO owner: ${owner}`);
             console.log(`   ✅ ModelDAO quorum numerator: ${quorumNumerator}%`);
-            console.log(`   ✅ ModelDAO chat fee: ${ethers.formatEther(chatFee)} LCAI`);
-            console.log(`   ✅ ModelDAO balance: ${ethers.formatEther(contractBalance)} ETH`);
+            console.log(`   ✅ ModelDAO chat fee: ${this.ethers.formatEther(chatFee)} LCAI`);
+            console.log(`   ✅ ModelDAO balance: ${this.ethers.formatEther(contractBalance)} ETH`);
 
             return true;
         } catch (error) {
