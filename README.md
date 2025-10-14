@@ -10,6 +10,7 @@ A comprehensive decentralized governance system built with OpenZeppelin Governor
 - **`LCAITimeLock.sol`** - Timelock controller for delayed execution of approved proposals
 - **`WLCAI.sol`** - ETH-backed governance token with 1:1 ETH deposits and withdrawals
 - **`PresaleVotingPower.sol`** - Admin-controlled voting power assignment system
+- **`LCAIChatUtility.sol`** - Chat utility contract with session management and reward distribution
 - **`Counter.sol`** - Example target contract for testing governance actions
 
 ### Governance Features
@@ -20,6 +21,40 @@ A comprehensive decentralized governance system built with OpenZeppelin Governor
 - ✅ **Multiple Voting Strategies** - Choose between token-based or admin-controlled voting
 - ✅ **Delegation Support** - Token holders can delegate voting power (token strategy only)
 - ✅ **Batch Operations** - Efficient multi-account voting power management
+- ✅ **Chat Utility Integration** - DAO controls chat fees, rewards, and session management
+- ✅ **Automated Deployment** - Complete system deployment with Makefile commands
+
+## 💬 Chat Utility Integration
+
+The system includes a comprehensive Chat Utility contract (`LCAIChatUtility.sol`) that is fully integrated with the DAO governance system:
+
+### Chat Utility Features
+
+- **Session Management** - Store and retrieve chat sessions with IPFS integration
+- **Reward Distribution** - Automated reward system for chat interactions
+- **Fee Configuration** - Configurable chat fees controlled by DAO governance
+- **Leaderboard System** - Track user statistics and rankings
+- **DAO Control** - All critical functions controlled by TimelockController
+
+### Governance Control
+
+The DAO can vote on proposals to:
+
+- **Update Chat Fees** - Change the cost per message
+- **Modify Reward Rates** - Adjust reward distribution parameters
+- **Authorize Reward Issuers** - Control who can issue rewards
+- **Pause/Unpause System** - Emergency controls for the chat utility
+- **Treasury Management** - Withdraw funds from the chat utility contract
+
+### Deployment Integration
+
+When you run `make deploy-all`, the system:
+
+1. **Deploys DAO Contracts** - Governor, Timelock, Voting Power
+2. **Deploys Chat Utility** - Session and reward management
+3. **Transfers Ownership** - Chat Utility ownership → TimelockController
+4. **Configures Roles** - Sets up proper governance permissions
+5. **Funds Contracts** - Provides initial funding for operations
 
 ## 🎯 Voting Strategies
 
@@ -178,6 +213,45 @@ npx hardhat test
 
 ## 📦 Deployment
 
+### Quick Start with Makefile
+
+The project includes a comprehensive Makefile for easy deployment and management:
+
+```bash
+# Show all available commands
+make help
+
+# Setup development environment
+make dev-setup
+
+# Deploy all contracts (DAO + Chat Utility)
+make deploy-all
+
+# Deploy only DAO contracts
+make deploy-dao
+
+# Deploy only Chat Utility
+make deploy-chat-utility
+
+# Deploy to specific network
+make deploy-all NETWORK=sepolia
+make deploy-dao NETWORK=lcaiTestnet
+```
+
+### Available Commands
+
+| Command | Description |
+|---------|-------------|
+| `make install` | Install dependencies |
+| `make compile` | Compile contracts |
+| `make deploy-all` | Deploy complete system (DAO + Chat Utility) |
+| `make deploy-dao` | Deploy DAO contracts only |
+| `make deploy-chat-utility` | Deploy Chat Utility only |
+| `make clean` | Clean build artifacts |
+| `make test` | Run test suite |
+| `make verify` | Verify deployed contracts |
+| `make status` | Show deployment status |
+
 ### Local Development
 
 Deploy to local Hardhat network for testing:
@@ -187,7 +261,7 @@ Deploy to local Hardhat network for testing:
 npx hardhat node
 
 # Deploy contracts (in another terminal)
-npx hardhat ignition deploy ignition/modules/Counter.ts --network localhost
+make deploy-all NETWORK=hardhat
 ```
 
 ### Testnet Deployment
@@ -199,11 +273,12 @@ npx hardhat ignition deploy ignition/modules/Counter.ts --network localhost
 2. **Deploy to LCAI Testnet:**
 
 ```bash
-# Deploy governance system
-npx hardhat run scripts/deploy.ts --network lcaiTestnet
+# Deploy complete system (recommended)
+make deploy-all NETWORK=lcaiTestnet
 
-# Or use ignition
-npx hardhat ignition deploy ignition/modules/Counter.ts --network lcaiTestnet
+# Or deploy components separately
+make deploy-dao NETWORK=lcaiTestnet
+make deploy-chat-utility NETWORK=lcaiTestnet
 ```
 
 #### Sepolia Testnet Deployment
@@ -224,7 +299,7 @@ npx hardhat keystore set SEPOLIA_PRIVATE_KEY
 2. **Deploy to Sepolia:**
 
 ```bash
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
+make deploy-all NETWORK=sepolia
 ```
 
 ### Production Deployment
