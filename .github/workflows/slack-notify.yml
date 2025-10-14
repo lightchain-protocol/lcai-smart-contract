@@ -1,0 +1,195 @@
+name: Slack notifications
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, review_requested, closed]
+
+jobs:
+  notify-slack:
+    name: Post to Slack
+    runs-on: ubuntu-latest
+
+    env:
+      REPO: ${{ github.repository }}
+      ACTOR: ${{ github.actor }}
+      BRANCH: ${{ github.ref_name }}
+      COMMIT_SHA: ${{ github.sha }}
+      GITHUB_URL: ${{ github.server_url }}/${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+    steps:
+      - name: Ensure jq is available
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      # -------------------- PUSH --------------------
+      - name: Build push payload (safe JSON)
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          echo '${{ toJson(github.event.commits) }}' > commits.json
+          LIMIT=10
+          COUNT=$(jq 'length' commits.json)
+
+          LIST=$(jq -r --argjson LIMIT "$LIMIT" '
+            to_entries
+            | map("• " +
+                  (.value.message | split("\n")[0]) +
+                  " (by " + ((.value.author.username // .value.author.name // "unknown")) + ")  " +
+                  .value.url)
+            | .[:$LIMIT] | join("\n")
+          ' commits.json)
+
+          COMPARE_URL="${{ env.GITHUB_URL }}/compare/${{ github.event.before }}...${{ github.event.after }}"
+
+          jq -n \
+            --arg repo   "${{ env.REPO }}" \
+            --arg actor  "${{ env.ACTOR }}" \
+            --arg branch "${{ env.BRANCH }}" \
+            --arg list   "$LIST" \
+            --arg count  "$COUNT" \
+            --arg runurl "${{ env.RUN_URL }}" \
+            --arg cmpurl "$COMPARE_URL" '
+          {
+            text: ("New push to " + $repo + " by " + $actor),
+            blocks: [
+              { type: "header", text: { type: "plain_text", text: ("New push to " + $repo), emoji: true } },
+              { type: "section",
+                fields: [
+                  { type:"mrkdwn", text: ("*Branch:*\n`" + $branch + "`") },
+                  { type:"mrkdwn", text: ("*By:*\n" + $actor) }
+                ]
+              },
+              { type: "section",
+                text: { type: "mrkdwn", text: ("*Commits (" + $count + ")*:\n" + $list) }
+              },
+              { type: "actions",
+                elements: [
+                  { type: "button", text: { type: "plain_text", text: "View Compare" }, url: $cmpurl },
+                  { type: "button", text: { type: "plain_text", text: "Workflow Run" }, url: $runurl }
+                ]
+              }
+            ]
+          }' > payload_push.json
+
+      - name: Notify Slack for push
+        if: ${{ github.event_name == 'push' }}
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          payload-file-path: payload_push.json
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+      # -------------------- PR OPEN/UPDATE --------------------
+      - name: Build PR payload (open/update)
+        if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' }}
+        run: |
+          jq -n \
+            --arg action   "${{ github.event.action }}" \
+            --arg number   "${{ github.event.pull_request.number }}" \
+            --arg title    "${{ github.event.pull_request.title }}" \
+            --arg url      "${{ github.event.pull_request.html_url }}" \
+            --arg author   "${{ github.event.pull_request.user.login }}" \
+            --arg base     "${{ github.event.pull_request.base.ref }}" \
+            --arg head     "${{ github.event.pull_request.head.ref }}" \
+            --arg state    "${{ github.event.pull_request.state }}" \
+            --arg runurl   "${{ env.RUN_URL }}" '
+          {
+            text: ("PR #" + $number + " " + $action + " by " + $author),
+            blocks: [
+              { type: "header", text: { type: "plain_text", text: ("Pull Request " + $action), emoji: true } },
+              { type: "section", text: { type: "mrkdwn", text: ("*#" + $number + "*  <" + $url + "|" + $title + ">") } },
+              { type: "section",
+                fields: [
+                  { type: "mrkdwn", text: ("*Author:*\n" + $author) },
+                  { type: "mrkdwn", text: ("*Base:*\n`" + $base + "`") },
+                  { type: "mrkdwn", text: ("*Head:*\n`" + $head + "`") },
+                  { type: "mrkdwn", text: ("*State:*\n" + $state) }
+                ]
+              },
+              { type: "actions",
+                elements: [
+                  { type: "button", text: { type: "plain_text", text: "Open PR" }, url: $url },
+                  { type: "button", text: { type: "plain_text", text: "Workflow Run" }, url: $runurl }
+                ]
+              }
+            ]
+          }' > payload_pr.json
+
+      - name: Notify Slack for PR activity
+        if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' }}
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          payload-file-path: payload_pr.json
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+      # -------------------- PR MERGED --------------------
+      - name: Build PR merged payload
+        if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true }}
+        run: |
+          jq -n \
+            --arg number "${{ github.event.pull_request.number }}" \
+            --arg title  "${{ github.event.pull_request.title }}" \
+            --arg url    "${{ github.event.pull_request.html_url }}" \
+            --arg actor  "${{ env.ACTOR }}" \
+            --arg base   "${{ github.event.pull_request.base.ref }}" \
+            --arg runurl "${{ env.RUN_URL }}" '
+          {
+            text: ("PR #" + $number + " merged by " + $actor),
+            blocks: [
+              { type: "header", text: { type: "plain_text", text: "Pull Request merged", emoji: true } },
+              { type: "section", text: { type: "mrkdwn", text: ("*#" + $number + "*  <" + $url + "|" + $title + ">") } },
+              { type: "section",
+                fields: [
+                  { type: "mrkdwn", text: ("*Merged by:*\n" + $actor) },
+                  { type: "mrkdwn", text: ("*Into:*\n`" + $base + "`") }
+                ]
+              },
+              { type: "actions",
+                elements: [
+                  { type: "button", text: { type: "plain_text", text: "View PR" }, url: $url },
+                  { type: "button", text: { type: "plain_text", text: "Workflow Run" }, url: $runurl }
+                ]
+              }
+            ]
+          }' > payload_merged.json
+
+      - name: Notify Slack for PR merged
+        if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true }}
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          payload-file-path: payload_merged.json
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+      # -------------------- PR CLOSED W/O MERGE --------------------
+      - name: Build PR closed-without-merge payload
+        if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged != true }}
+        run: |
+          jq -n \
+            --arg number "${{ github.event.pull_request.number }}" \
+            --arg title  "${{ github.event.pull_request.title }}" \
+            --arg url    "${{ github.event.pull_request.html_url }}" \
+            --arg actor  "${{ env.ACTOR }}" '
+          {
+            text: ("PR #" + $number + " closed without merge"),
+            blocks: [
+              { type: "header", text: { type: "plain_text", text: "Pull Request closed", emoji: true } },
+              { type: "section", text: { type: "mrkdwn", text: ("*#" + $number + "*  <" + $url + "|" + $title + ">") } },
+              { type: "context", elements: [ { type: "mrkdwn", text: ("Closed by *" + $actor + "*") } ] }
+            ]
+          }' > payload_closed.json
+
+      - name: Notify Slack for PR closed without merge
+        if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged != true }}
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          channel-id: ${{ secrets.SLACK_CHANNEL_ID }}
+          payload-file-path: payload_closed.json
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
