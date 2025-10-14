@@ -35,7 +35,7 @@ jobs:
           LIST=$(jq -r --argjson LIMIT "$LIMIT" '
             to_entries
             | map("• " +
-                  (.value.message | split("\n")[0]) +
+                  (.value.message | split("\n")[0] | gsub("[\\(\\)]"; "")) +
                   " (by " + ((.value.author.username // .value.author.name // "unknown")) + ")  " +
                   .value.url)
             | .[:$LIMIT] | join("\n")
