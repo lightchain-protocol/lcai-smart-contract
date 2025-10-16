@@ -63,7 +63,7 @@ async function main() {
 
     // Get explorer URL from Hardhat config
     const hardhatConfig = await
-    import ('../hardhat.config.js');
+        import('../hardhat.config.js');
     const networkConfig = hardhatConfig.default.networks[networkName] || {};
     const explorerUrl = (networkConfig.explorer && networkConfig.explorer.url) || 'https://testnet.lightscan.app';
 
@@ -228,7 +228,7 @@ async function main() {
 
         // Configure TimelockController roles
         console.log(`   🔧 Configuring TimelockController roles...`);
-        await roleAssigner.configureTimelockRoles(timelockAddress, chatUtilityAddress);
+        await roleAssigner.configureTimelockRoles(timelockAddress, governorAddress);
 
         console.log(`   ✅ DAO governance configured successfully`);
     } catch (error) {
@@ -252,14 +252,15 @@ async function main() {
             console.warn(`   ⚠️ LCAIChatUtility funding failed`);
         }
 
-        // Fund TimelockController for governance transactions
-        console.log(`   💰 Funding TimelockController...`);
-        const timelockFundingSuccess = await roleAssigner.fundTimelockController(timelockAddress, '10.0');
-        if (timelockFundingSuccess) {
-            console.log(`   ✅ TimelockController funded with 10 LCAI`);
-        } else {
-            console.warn(`   ⚠️ TimelockController funding failed`);
-        }
+        // NO FUNDING NEEDED FOR TIMELOCK CONTROLLER
+        // Fund TimelockController for governance transactions 
+        // console.log(`   💰 Funding TimelockController...`);
+        // const timelockFundingSuccess = await roleAssigner.fundTimelockController(timelockAddress, '10.0');
+        // if (timelockFundingSuccess) {
+        //     console.log(`   ✅ TimelockController funded with 10 LCAI`);
+        // } else {
+        //     console.warn(`   ⚠️ TimelockController funding failed`);
+        // }
 
     } catch (error) {
         console.error(`   ❌ Funding failed:`, error.message);
