@@ -15,7 +15,10 @@ contract PresaleVotingPower is IVotes, Ownable {
     mapping(address => uint256) private _votingPower;
 
     // Total supply of all voting power assigned
-    uint256 private _totalSupply;
+    uint256 public totalSupply;
+
+    // Mapping to store the total voting power assigned to each address
+    uint256 private _totalVotingPower;
 
     /**
      * @dev Event emitted when voting power is updated for an account
@@ -32,7 +35,9 @@ contract PresaleVotingPower is IVotes, Ownable {
     /**
      * @dev Constructor sets the deployer as the initial owner
      */
-    constructor() Ownable(msg.sender) {}
+    constructor(uint256 _totalSupply) Ownable(msg.sender) {
+        totalSupply = _totalSupply;
+    }
 
     /**
      * @dev Allows the owner to manually set voting power for an account
@@ -51,8 +56,12 @@ contract PresaleVotingPower is IVotes, Ownable {
         uint256 oldAmount = _votingPower[account];
         _votingPower[account] = amount;
 
-        // Update total supply
-        _totalSupply = _totalSupply - oldAmount + amount;
+        _totalVotingPower += amount - oldAmount;
+
+        require(
+            _totalVotingPower <= totalSupply,
+            "PresaleVotingPower: total voting power exceeds total supply"
+        );
 
         emit VotingPowerUpdated(account, amount, oldAmount);
     }
@@ -87,8 +96,12 @@ contract PresaleVotingPower is IVotes, Ownable {
             uint256 oldAmount = _votingPower[account];
             _votingPower[account] = amount;
 
-            // Update total supply
-            _totalSupply = _totalSupply - oldAmount + amount;
+            _totalVotingPower += amount - oldAmount;
+
+            require(
+                _totalVotingPower <= totalSupply,
+                "PresaleVotingPower: total voting power exceeds total supply"
+            );
 
             emit VotingPowerUpdated(account, amount, oldAmount);
         }
@@ -128,7 +141,7 @@ contract PresaleVotingPower is IVotes, Ownable {
         uint256
     ) external view override returns (uint256) {
         // For simplicity, we don't implement historical checkpointing
-        return _totalSupply;
+        return totalSupply;
     }
 
     /**
@@ -158,14 +171,6 @@ contract PresaleVotingPower is IVotes, Ownable {
      */
     function delegates(address) external pure override returns (address) {
         return address(0);
-    }
-
-    /**
-     * @dev Returns the current total supply of voting power
-     * @return The total supply of all assigned voting power
-     */
-    function totalSupply() external view returns (uint256) {
-        return _totalSupply;
     }
 
     /**

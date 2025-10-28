@@ -1,5 +1,7 @@
 import { network } from "hardhat";
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function main() {
   const { ethers } = await network.connect();
 
@@ -13,10 +15,10 @@ async function main() {
   ]);
   console.log("Timelock deployed to:", await timelock.getAddress());
 
-  const PresaleVotingPower = await ethers.deployContract(
-    "PresaleVotingPower",
-    []
-  );
+  const presaleTotalSupply = 10000000n;
+  const PresaleVotingPower = await ethers.deployContract("PresaleVotingPower", [
+    presaleTotalSupply,
+  ]);
   console.log(
     "PresaleVotingPower deployed to:",
     await PresaleVotingPower.getAddress()
@@ -25,36 +27,21 @@ async function main() {
   const governor = await ethers.deployContract("LCAIGovernor", [
     await PresaleVotingPower.getAddress(),
     await timelock.getAddress(),
+    deployer.address, // <-- NEW: multisigAddress admin address for emergency actions
   ]);
   console.log("Governor deployed to:", await governor.getAddress());
 
+  // Wait for 5 seconds to ensure the contract is deployed
+  await sleep(5000);
+
   const proposerRole = await timelock.PROPOSER_ROLE();
   const executorRole = await timelock.EXECUTOR_ROLE();
+  const cancelRole = await timelock.CANCELLER_ROLE();
   await timelock.grantRole(proposerRole, await governor.getAddress());
   await timelock.grantRole(executorRole, await governor.getAddress());
+  await timelock.grantRole(cancelRole, await governor.getAddress());
 
   console.log("Timelock roles set");
-
-  const votingPower = [
-    { voter: "0x14b02E90305Cb16493475cb764194CCDA163c46C", amount: "100000" },
-    { voter: "0x9893Ccf1070B61D44295EA9A668142b8350D8eC4", amount: "50000" },
-    { voter: "0xfFe46696dA1E322EB80e9b04D7b324292d725B64", amount: "50000" },
-    { voter: "0xd6297dc08a53abF0d965c9ab3DCD1bAeA30fa029", amount: "50000" },
-  ] as const;
-
-  for (const vp of votingPower) {
-    await deployer.sendTransaction({
-      to: vp.voter,
-      value: ethers.parseEther("1"),
-    });
-  }
-
-  await PresaleVotingPower.setVotingPowerBatch(
-    votingPower.map((vp) => vp.voter),
-    votingPower.map((vp) => ethers.parseEther(vp.amount))
-  );
-
-  console.log("Voting powers set");
 
   const counter = await ethers.deployContract("Counter", [
     await timelock.getAddress(),
