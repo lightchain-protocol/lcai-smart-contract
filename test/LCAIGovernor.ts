@@ -3,6 +3,7 @@ import { network } from "hardhat";
 import { LCAIGovernor } from "../types/ethers-contracts/LCAIGovernor.js";
 import { Counter } from "../types/ethers-contracts/Counter.js";
 import { PresaleVotingPower } from "../types/ethers-contracts/PresaleVotingPower.js";
+import { parseEther } from "ethers";
 
 enum ProposalState {
   Pending,
@@ -42,6 +43,7 @@ describe("LCAIGovernor", function () {
     const governor = await ethers.deployContract("LCAIGovernor", [
       await token.getAddress(),
       await timelock.getAddress(),
+      deployer.address, // admin address
     ]);
     const counter = await ethers.deployContract("Counter", [
       await timelock.getAddress(),
@@ -176,8 +178,13 @@ describe("LCAIGovernor", function () {
   }
 
   // Helper function to deploy governance contracts with PresaleVotingPower
-  async function deployManualGovernanceContracts(minDelay: bigint = 14400n) {
-    const votesStrategy = await ethers.deployContract("PresaleVotingPower");
+  async function deployManualGovernanceContracts(
+    totalSupply: number = 1000000,
+    minDelay: bigint = 14400n
+  ) {
+    const votesStrategy = await ethers.deployContract("PresaleVotingPower", [
+      parseEther(`${totalSupply}`),
+    ]);
     const timelock = await ethers.deployContract("LCAITimeLock", [
       minDelay,
       [], // proposers (will be set to governor)
@@ -187,6 +194,7 @@ describe("LCAIGovernor", function () {
     const governor = await ethers.deployContract("LCAIGovernor", [
       votesStrategy.getAddress(),
       timelock.getAddress(),
+      deployer.address, // admin address
     ]);
     const counter = await ethers.deployContract("Counter", [
       timelock.getAddress(),
@@ -455,7 +463,7 @@ describe("LCAIGovernor", function () {
   it("Should respect quorum with PresaleVotingPower", async function () {
     // Deploy contracts with PresaleVotingPower
     const { votesStrategy, timelock, governor, counter } =
-      await deployManualGovernanceContracts(60n);
+      await deployManualGovernanceContracts(1000000, 60n);
 
     // Setup timelock roles
     await setupTimelockRoles(timelock, governor);
@@ -469,7 +477,7 @@ describe("LCAIGovernor", function () {
 
     // Verify total supply and that voter1 has insufficient power for quorum
     const totalSupply = await votesStrategy.totalSupply();
-    expect(totalSupply).to.equal(ethers.parseEther("100000"));
+    expect(totalSupply).to.equal(ethers.parseEther("1000000"));
 
     const voter1Power = await votesStrategy.getVotes(voter1.address);
     expect(voter1Power).to.equal(ethers.parseEther("1000"));
@@ -502,7 +510,7 @@ describe("LCAIGovernor", function () {
   it("Should allow admin to update voting power dynamically", async function () {
     // Deploy contracts with PresaleVotingPower
     const { votesStrategy, timelock, governor, counter } =
-      await deployManualGovernanceContracts(60n);
+      await deployManualGovernanceContracts(1000000, 60n);
 
     // Setup timelock roles
     await setupTimelockRoles(timelock, governor);
@@ -526,7 +534,7 @@ describe("LCAIGovernor", function () {
 
     // Verify total supply was updated correctly
     const totalSupply = await votesStrategy.totalSupply();
-    expect(totalSupply).to.equal(ethers.parseEther("50000"));
+    expect(totalSupply).to.equal(ethers.parseEther("1000000"));
 
     // Mine a block to ensure changes are active
     await networkHelpers.mine();
@@ -570,5 +578,573 @@ describe("LCAIGovernor", function () {
     // Verify delegates always returns address(0)
     const delegate = await votesStrategy.delegates(voter1.address);
     expect(delegate).to.equal("0x0000000000000000000000000000000000000000");
+  });
+
+  // ===== EMERGENCY STOP TESTS =====
+  // These tests verify the emergency cancel functionality that allows
+  // an admin (typically a multisig) to cancel proposals in any state
+
+  it("Should allow admin to emergency cancel proposal in Pending state", async function () {
+    // Deploy contracts with admin as deployer
+    const { token, timelock, governor, counter } =
+      await deployGovernanceContracts(60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Verify admin is set correctly
+    const adminAddress = await governor.admin();
+    expect(adminAddress).to.equal(deployer.address);
+
+    // Distribute tokens
+    await distributeTokensAndDelegate(token, [
+      { voter: voter1, amount: "50000" },
+    ]);
+
+    // Create proposal
+    const { targets, values, calldatas } = await createCounterIncrementProposal(
+      counter
+    );
+    const description = "Test emergency cancel in Pending state";
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    // Verify proposal is in Pending state
+    const initialState = await governor.state(proposalId);
+    expect(initialState).to.equal(ProposalState.Pending);
+
+    // Admin emergency cancels the proposal
+    await governor.emergencyCancel(
+      proposalData.targets,
+      proposalData.values,
+      proposalData.calldatas,
+      proposalData.descriptionHash
+    );
+
+    // Verify proposal is now Canceled
+    const finalState = await governor.state(proposalId);
+    expect(finalState).to.equal(ProposalState.Canceled);
+  });
+
+  it("Should allow admin to emergency cancel proposal in Active state", async function () {
+    // Deploy contracts
+    const { token, timelock, governor, counter } =
+      await deployGovernanceContracts(60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Distribute tokens
+    await distributeTokensAndDelegate(token, [
+      { voter: voter1, amount: "50000" },
+    ]);
+
+    // Create proposal
+    const { targets, values, calldatas } = await createCounterIncrementProposal(
+      counter
+    );
+    const description = "Test emergency cancel in Active state";
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    // Advance to Active state
+    const deadline = await governor.proposalDeadline(proposalId);
+    await networkHelpers.mineUpTo(deadline - 100n);
+
+    // Verify proposal is Active
+    const activeState = await governor.state(proposalId);
+    expect(activeState).to.equal(ProposalState.Active);
+
+    // Admin emergency cancels the proposal
+    await governor.emergencyCancel(
+      proposalData.targets,
+      proposalData.values,
+      proposalData.calldatas,
+      proposalData.descriptionHash
+    );
+
+    // Verify proposal is now Canceled
+    const finalState = await governor.state(proposalId);
+    expect(finalState).to.equal(ProposalState.Canceled);
+  });
+
+  it("Should allow admin to emergency cancel proposal in Succeeded state", async function () {
+    // Deploy contracts
+    const { token, timelock, governor, counter } =
+      await deployGovernanceContracts(60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Distribute tokens
+    await distributeTokensAndDelegate(token, [
+      { voter: voter1, amount: "50000" },
+    ]);
+
+    // Create proposal
+    const { targets, values, calldatas } = await createCounterIncrementProposal(
+      counter
+    );
+    const description = "Test emergency cancel in Succeeded state";
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    // Vote and advance to Succeeded state
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+    ]);
+
+    // Verify proposal is Succeeded
+    const succeededState = await governor.state(proposalId);
+    expect(succeededState).to.equal(ProposalState.Succeeded);
+
+    // Admin emergency cancels the proposal
+    await governor.emergencyCancel(
+      proposalData.targets,
+      proposalData.values,
+      proposalData.calldatas,
+      proposalData.descriptionHash
+    );
+
+    // Verify proposal is now Canceled
+    const finalState = await governor.state(proposalId);
+    expect(finalState).to.equal(ProposalState.Canceled);
+  });
+
+  it("Should allow admin to emergency cancel proposal in Queued state", async function () {
+    // Deploy contracts
+    const { token, timelock, governor, counter, minDelay } =
+      await deployGovernanceContracts(100n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Grant CANCELLER_ROLE to governor (so it can cancel queued proposals in timelock)
+    const cancellerRole = await timelock.CANCELLER_ROLE();
+    await timelock.grantRole(cancellerRole, await governor.getAddress());
+
+    // Distribute tokens
+    await distributeTokensAndDelegate(token, [
+      { voter: voter1, amount: "50000" },
+    ]);
+
+    // Create proposal
+    const { targets, values, calldatas } = await createCounterIncrementProposal(
+      counter
+    );
+    const description = "Test emergency cancel in Queued state";
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    // Vote and queue the proposal
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+    ]);
+    await queueProposal(governor, proposalData);
+
+    // Verify proposal is Queued
+    const queuedState = await governor.state(proposalId);
+    expect(queuedState).to.equal(ProposalState.Queued);
+
+    // Admin emergency cancels the proposal
+    await governor.emergencyCancel(
+      proposalData.targets,
+      proposalData.values,
+      proposalData.calldatas,
+      proposalData.descriptionHash
+    );
+
+    // Verify proposal is now Canceled
+    const finalState = await governor.state(proposalId);
+    expect(finalState).to.equal(ProposalState.Canceled);
+  });
+
+  it("Should prevent non-admin from emergency canceling", async function () {
+    // Deploy contracts
+    const { token, timelock, governor, counter } =
+      await deployGovernanceContracts(60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Distribute tokens
+    await distributeTokensAndDelegate(token, [
+      { voter: voter1, amount: "50000" },
+    ]);
+
+    // Create proposal
+    const { targets, values, calldatas } = await createCounterIncrementProposal(
+      counter
+    );
+    const description = "Test unauthorized emergency cancel";
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    // Verify proposal is in Pending state
+    const initialState = await governor.state(proposalId);
+    expect(initialState).to.equal(ProposalState.Pending);
+
+    // Try to emergency cancel as non-admin (should fail)
+    try {
+      await governor
+        .connect(voter1)
+        .emergencyCancel(
+          proposalData.targets,
+          proposalData.values,
+          proposalData.calldatas,
+          proposalData.descriptionHash
+        );
+      expect.fail("Should have failed - caller is not admin");
+    } catch (error: any) {
+      expect(error.message.includes("UnauthorizedEmergencyAction")).ok;
+    }
+
+    // Verify proposal is still in Pending state
+    const finalState = await governor.state(proposalId);
+    expect(finalState).to.equal(ProposalState.Pending);
+  });
+
+  it("Should prevent emergency cancel of executed proposal", async function () {
+    // Deploy contracts with short delay
+    const { token, timelock, governor, counter, minDelay } =
+      await deployGovernanceContracts(60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Distribute tokens
+    await distributeTokensAndDelegate(token, [
+      { voter: voter1, amount: "50000" },
+    ]);
+
+    // Create, vote, queue and execute proposal
+    const { targets, values, calldatas } = await createCounterIncrementProposal(
+      counter
+    );
+    const description = "Test emergency cancel of executed proposal";
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+    ]);
+    await queueProposal(governor, proposalData);
+
+    // Fast forward and execute
+    const lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
+    await executeProposal(governor, proposalData);
+
+    // Verify proposal is Executed
+    const executedState = await governor.state(proposalId);
+    expect(executedState).to.equal(ProposalState.Executed);
+
+    // Try to emergency cancel (should fail)
+    try {
+      await governor.emergencyCancel(
+        proposalData.targets,
+        proposalData.values,
+        proposalData.calldatas,
+        proposalData.descriptionHash
+      );
+      expect.fail("Should have failed - proposal is executed");
+    } catch (error: any) {
+      expect(error.message.includes("GovernorUnexpectedProposalState")).ok;
+    }
+  });
+
+  it("Should allow governance to update admin address", async function () {
+    // Deploy contracts
+    const { token, timelock, governor, counter, minDelay } =
+      await deployGovernanceContracts(60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Verify initial admin
+    const initialAdmin = await governor.admin();
+    expect(initialAdmin).to.equal(deployer.address);
+
+    // Distribute tokens
+    await distributeTokensAndDelegate(token, [
+      { voter: voter1, amount: "50000" },
+    ]);
+
+    // Create proposal to update admin to voter2
+    const newAdminAddress = voter2.address;
+    const targets = [await governor.getAddress()];
+    const values = [0n];
+    const calldatas = [
+      governor.interface.encodeFunctionData("updateAdmin", [newAdminAddress]),
+    ];
+    const description = "Update admin to voter2";
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    // Vote, queue and execute
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+    ]);
+    await queueProposal(governor, proposalData);
+
+    const lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
+    await executeProposal(governor, proposalData);
+
+    // Verify admin was updated
+    const updatedAdmin = await governor.admin();
+    expect(updatedAdmin).to.equal(voter2.address);
+
+    // Verify old admin can no longer emergency cancel
+    const {
+      targets: targets2,
+      values: values2,
+      calldatas: calldatas2,
+    } = await createCounterIncrementProposal(counter);
+    const description2 = "Test with new admin";
+    const { proposalId: proposalId2, proposalData: proposalData2 } =
+      await createProposal(
+        governor,
+        targets2,
+        values2,
+        calldatas2,
+        description2,
+        voter1
+      );
+
+    try {
+      await governor
+        .connect(deployer)
+        .emergencyCancel(
+          proposalData2.targets,
+          proposalData2.values,
+          proposalData2.calldatas,
+          proposalData2.descriptionHash
+        );
+      expect.fail("Old admin should not be able to cancel");
+    } catch (error: any) {
+      expect(error.message.includes("UnauthorizedEmergencyAction")).ok;
+    }
+
+    // Verify new admin can emergency cancel
+    await governor
+      .connect(voter2)
+      .emergencyCancel(
+        proposalData2.targets,
+        proposalData2.values,
+        proposalData2.calldatas,
+        proposalData2.descriptionHash
+      );
+
+    const finalState = await governor.state(proposalId2);
+    expect(finalState).to.equal(ProposalState.Canceled);
+  });
+
+  it("Should verify timelock operation is canceled when emergency canceling queued proposal", async function () {
+    // Deploy contracts
+    const { token, timelock, governor, counter, minDelay } =
+      await deployGovernanceContracts(100n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Grant CANCELLER_ROLE to governor (so it can cancel queued proposals in timelock)
+    const cancellerRole = await timelock.CANCELLER_ROLE();
+    await timelock.grantRole(cancellerRole, await governor.getAddress());
+
+    // Distribute tokens
+    await distributeTokensAndDelegate(token, [
+      { voter: voter1, amount: "50000" },
+    ]);
+
+    // Create proposal
+    const { targets, values, calldatas } = await createCounterIncrementProposal(
+      counter
+    );
+    const description = "Test timelock cancellation verification";
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    // Vote and queue the proposal
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+    ]);
+    await queueProposal(governor, proposalData);
+
+    // Verify proposal is Queued
+    const queuedState = await governor.state(proposalId);
+    expect(queuedState).to.equal(ProposalState.Queued);
+
+    // Calculate timelock operation ID using JavaScript (same as Solidity)
+    const governorAddress = await governor.getAddress();
+    const descriptionHash = proposalData.descriptionHash;
+
+    // Calculate salt: bytes20(address(this)) ^ descriptionHash
+    // In JavaScript: right-pad address to 32 bytes, then XOR
+    const addressBytes32 =
+      governorAddress.toLowerCase() + "000000000000000000000000";
+    const salt = ethers.toBeHex(
+      BigInt(addressBytes32) ^ BigInt(descriptionHash),
+      32
+    );
+
+    const timelockId = await timelock.hashOperationBatch(
+      targets,
+      values,
+      calldatas,
+      ethers.ZeroHash, // predecessor
+      salt
+    );
+
+    // Verify the operation exists in timelock before cancellation
+    const timestampBefore = await timelock.getTimestamp(timelockId);
+    expect(timestampBefore).to.be.gt(0n); // Should be scheduled
+
+    // Admin emergency cancels the proposal
+    await governor.emergencyCancel(
+      proposalData.targets,
+      proposalData.values,
+      proposalData.calldatas,
+      proposalData.descriptionHash
+    );
+
+    // Verify proposal is now Canceled in governor
+    const finalState = await governor.state(proposalId);
+    expect(finalState).to.equal(ProposalState.Canceled);
+
+    // Verify the timelock operation was canceled (timestamp should be 0)
+    const timestampAfter = await timelock.getTimestamp(timelockId);
+    expect(timestampAfter).to.equal(0n); // Should be canceled
+  });
+
+  it("Should emit events when admin is updated and proposal is emergency canceled", async function () {
+    // Deploy contracts
+    const { token, timelock, governor, counter, minDelay } =
+      await deployGovernanceContracts(60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Distribute tokens
+    await distributeTokensAndDelegate(token, [
+      { voter: voter1, amount: "50000" },
+    ]);
+
+    // Create proposal to update admin
+    const newAdminAddress = voter2.address;
+    const targets = [await governor.getAddress()];
+    const values = [0n];
+    const calldatas = [
+      governor.interface.encodeFunctionData("updateAdmin", [newAdminAddress]),
+    ];
+    const description = "Update admin event test";
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    // Vote, queue and execute
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+    ]);
+    await queueProposal(governor, proposalData);
+
+    const lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
+
+    // Check for AdminUpdated event
+    await expect(
+      governor.execute(
+        proposalData.targets,
+        proposalData.values,
+        proposalData.calldatas,
+        proposalData.descriptionHash
+      )
+    )
+      .to.emit(governor, "AdminUpdated")
+      .withArgs(deployer.address, voter2.address);
+
+    // Create another proposal and emergency cancel
+    const {
+      targets: targets2,
+      values: values2,
+      calldatas: calldatas2,
+    } = await createCounterIncrementProposal(counter);
+    const description2 = "Test emergency cancel event";
+    const { proposalId: proposalId2, proposalData: proposalData2 } =
+      await createProposal(
+        governor,
+        targets2,
+        values2,
+        calldatas2,
+        description2,
+        voter1
+      );
+
+    // Check for EmergencyCancellation event
+    await expect(
+      governor
+        .connect(voter2)
+        .emergencyCancel(
+          proposalData2.targets,
+          proposalData2.values,
+          proposalData2.calldatas,
+          proposalData2.descriptionHash
+        )
+    )
+      .to.emit(governor, "EmergencyCancellation")
+      .withArgs(proposalId2, voter2.address);
   });
 });
