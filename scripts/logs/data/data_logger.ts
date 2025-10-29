@@ -1,27 +1,25 @@
-//path: lcai-dao-smart-contract/scripts/logs/data/data_logger.mjs
+//path: lcai-dao-smart-contract/scripts/logs/data/data_logger.ts
 import fs from 'fs';
 import path from 'path';
 import { promises as fsp } from 'fs';
 import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(
-    import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
  * Appends an IPFS hash URL to the ipfs_hashes.json file.
- * @param {string} newHash - The IPFS CID hash to append.
- * @returns {Promise<void>} - A promise that resolves when the hash is appended.
+ * @param newHash - The IPFS CID hash to append.
  */
-export async function appendHashToFile(newHash) {
+export async function appendHashToFile(newHash: string): Promise<void> {
     // Go up from scripts/logs/data/ to project root
     const projectRoot = path.resolve(__dirname, '..', '..', '..');
     const hashesPath = path.join(projectRoot, 'data', 'ipfs', 'ipfs_hashes.json');
-    let hashes = [];
+    let hashes: string[] = [];
     try {
         const data = await fsp.readFile(hashesPath, 'utf-8');
         hashes = JSON.parse(data);
-    } catch (err) {
+    } catch (err: any) {
         // If file doesn't exist, start with empty array
         if (err.code !== 'ENOENT') throw err;
     }
@@ -38,10 +36,10 @@ export async function appendHashToFile(newHash) {
 
 /**
  * Appends a log entry to a JSON file, creating the file and directory if needed.
- * @param {string} filePath - The path to the JSON log file.
- * @param {object} entry - The log entry to append.
+ * @param filePath - The path to the JSON log file.
+ * @param entry - The log entry to append.
  */
-export function appendLog(filePath, entry) {
+export function appendLog(filePath: string, entry: any): void {
     const absPath = path.resolve(filePath);
     const dir = path.dirname(absPath);
     if (!fs.existsSync(dir)) {
@@ -65,7 +63,7 @@ export function appendLog(filePath, entry) {
  * Logs a new deployment set to contractsData.json in the front end as well.
  * The file is replaced entirely with just the new deployment set.
  */
-export function logDeploymentsHistory(deploymentSet) {
+export function logDeploymentsHistory(deploymentSet: any): void {
     // Go up from scripts/logs/data/ to project root
     const projectRoot = path.resolve(__dirname, '..', '..', '..');
     const filePath = path.join(projectRoot, 'data', 'deployments', 'deploymentsHistory.json');
@@ -76,7 +74,7 @@ export function logDeploymentsHistory(deploymentSet) {
 
     // Load ABIs for deployment data
     const abiPath = path.join(projectRoot, 'abi');
-    const contractsWithAbis = {};
+    const contractsWithAbis: any = {};
 
     for (const [contractName, contractInfo] of Object.entries(deploymentSet.contracts)) {
         try {
@@ -84,14 +82,14 @@ export function logDeploymentsHistory(deploymentSet) {
             if (fs.existsSync(abiFilePath)) {
                 const abiData = JSON.parse(fs.readFileSync(abiFilePath, 'utf8'));
                 contractsWithAbis[contractName] = {
-                    ...contractInfo,
+                    ...(contractInfo as any),
                     abiPath: abiFilePath,
                     abiRaw: abiData
                 };
             } else {
                 contractsWithAbis[contractName] = contractInfo;
             }
-        } catch (error) {
+        } catch (error: any) {
             console.warn(`   ⚠️ Failed to load ABI for ${contractName}:`, error.message);
             contractsWithAbis[contractName] = contractInfo;
         }
@@ -149,7 +147,7 @@ export function logDeploymentsHistory(deploymentSet) {
  * Appends a transaction log entry to the transactions.json file.
  * @param {object} entry - The transaction log entry to append.
  */
-export function appendTransactionLog(entry) {
+export function appendTransactionLog(entry: any): void {
     // Go up from scripts/logs/data/ to project root
     const projectRoot = path.resolve(__dirname, '..', '..', '..');
     const txFile = path.join(projectRoot, 'data', 'transactions.json');
@@ -175,9 +173,9 @@ export function appendTransactionLog(entry) {
  * - lcai-chat/lib/data/chatUtilitycontractsData.json (replaces with latest)
  * @param {object} deploymentData - The deployment data to log.
  */
-export function logChatUtilityDeployment(deploymentData) {
+export function logChatUtilityDeployment(deploymentData: any): void {
     // JSON serializer to handle BigInt
-    const jsonSerializer = (key, value) => typeof value === 'bigint' ? value.toString() : value;
+    const jsonSerializer = (key: string, value: any) => typeof value === 'bigint' ? value.toString() : value;
 
     // Go up from scripts/logs/data/ to project root
     const projectRoot = path.resolve(__dirname, '..', '..', '..');
@@ -193,7 +191,7 @@ export function logChatUtilityDeployment(deploymentData) {
     if (fs.existsSync(historyPath)) {
         try {
             history = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
-        } catch (e) {
+        } catch (e: any) {
             console.warn(`⚠️ Could not read existing history, creating new:`, e.message);
             history = [];
         }
