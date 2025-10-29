@@ -1,22 +1,20 @@
-//path: lcai-dao-smart-contract/scripts/deploy-chat-utility.mjs
-import hre from "hardhat";
-const { ethers } = hre;
+
+//path: lcai-dao-smart-contract/scripts/deployment/deploy-chat-utility.ts
+import { network } from "hardhat";
 import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import hardhatConfig from '../../hardhat.config.js';
 
 // -------------------- ABI & Contract Utilities --------------------
-import { saveAbi } from '../abi/saveAbi.mjs';
+import { saveAbi } from '../abi/saveAbi.js';
 
 // -------------------- Print Deployment Info To Console --------------------
-import { printDeployingContract, printExplorerContractLink } from '../logs/console/console_logger.mjs';
+import { printDeployingContract, printExplorerContractLink } from '../logs/console/console_logger.js';
 
 // -------------------- Deployment History Logging --------------------
-import { logChatUtilityDeployment } from '../logs/data/data_logger.mjs';
+import { logChatUtilityDeployment } from '../logs/data/data_logger.js';
 
 // -------------------- Role Assignment & Funding --------------------
-import { RoleAssigner } from './roles/assignRoles.mjs';
+import { RoleAssigner } from '../roles/assignRoles.js';
 
 /**
  * Deploy LCAIChatUtility Contract
@@ -25,35 +23,30 @@ import { RoleAssigner } from './roles/assignRoles.mjs';
  * session management and reward tracking functionality.
  */
 
-const __filename = fileURLToPath(
-    import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Configuration
-const CONFIG = {
-    initialChatFee: ethers.parseEther("0.001"), // 0.001 LCAI per message
-    baseReward: ethers.parseEther("0.01"), // 0.01 LCAI per chat reward
-    epochDuration: 7 * 24 * 60 * 60, // 7 days
-    maxRewardPerEpoch: ethers.parseEther("1000"), // 1000 LCAI max per epoch
-};
-
 async function main() {
     console.log("🚀 Deploying LCAIChatUtility with TimelockController");
     console.log("=====================================================");
     console.log("");
 
-    // Get deployer
+    const { ethers } = await network.connect();
+    
+    // Configuration
+    const CONFIG = {
+        initialChatFee: ethers.parseEther("0.001"), // 0.001 LCAI per message
+        baseReward: ethers.parseEther("0.01"), // 0.01 LCAI per chat reward
+        epochDuration: 7 * 24 * 60 * 60, // 7 days
+        maxRewardPerEpoch: ethers.parseEther("1000"), // 1000 LCAI max per epoch
+    };
     const [deployer] = await ethers.getSigners();
 
     // Get network info
-    const network = await hre.network.name;
-    const chainIdHex = await hre.network.provider.send('eth_chainId');
-    const chainId = parseInt(chainIdHex, 16);
-    console.log(`📡 Deploying to network: ${network} (chainId: ${chainId})`);
+    const networkName = (network as any).name;
+    const chainId = (await ethers.provider.getNetwork()).chainId;
+    console.log(`📡 Deploying to network: ${networkName} (chainId: ${chainId})`);
 
     // Get explorer URL and RPC URL from Hardhat config for the current network
-    const networkConfig = hardhatConfig.networks[network] || {};
-    const explorerUrl = (networkConfig.explorer && networkConfig.explorer.url) || '';
+    const networkConfig = (hardhatConfig.networks as any)?.[networkName] || {};
+    const explorerUrl = networkConfig.explorer?.url || '';
     const rpcUrl = networkConfig.url || '';
 
     console.log(`👤 Deployer: ${deployer.address}`);
@@ -87,7 +80,7 @@ async function main() {
     const timelockAddress = await timelock.getAddress();
 
     console.log(`   ✅ TimelockController deployed at: ${timelockAddress}`);
-    printExplorerContractLink(timelockAddress, network);
+    printExplorerContractLink("TimelockController", timelockAddress, explorerUrl);
     console.log(`   ⏱️  Min Delay: ${minDelay} seconds`);
     console.log(`   👥 Proposers: ${proposers.join(', ')}`);
     console.log(`   👥 Executors: ${executors.join(', ')}`);
@@ -97,8 +90,8 @@ async function main() {
     try {
         saveAbi("TimelockController", TimelockController);
         console.log(`   📄 ABI saved for TimelockController`);
-    } catch (error) {
-        console.warn(`   ⚠️ Failed to save ABI for TimelockController:`, error.message);
+        } catch (error: any) {
+            console.warn(`   ⚠️ Failed to save ABI for TimelockController:`, error.message);
     }
     console.log("");
 
@@ -129,16 +122,22 @@ async function main() {
             const gasPrice = ethers.parseUnits("50", "gwei");
             console.log(`   ⛽ Gas price: ${ethers.formatUnits(gasPrice, 'gwei')} gwei`);
 
-            chatUtility = await LCAIChatUtility.deploy(...constructorArgs, {
-                gasPrice: gasPrice,
-                gasLimit: 8000000
-            });
+            chatUtility = await LCAIChatUtility.deploy(
+                CONFIG.initialChatFee,
+                CONFIG.baseReward,
+                CONFIG.epochDuration,
+                CONFIG.maxRewardPerEpoch,
+                {
+                    gasPrice: gasPrice,
+                    gasLimit: 8000000
+                }
+            );
             await chatUtility.waitForDeployment();
 
             console.log(`   ✅ LCAIChatUtility deployed successfully on attempt ${attempt}`);
             break;
 
-        } catch (error) {
+        } catch (error: any) {
             console.log(`   ❌ Attempt ${attempt} failed: ${error.message}`);
 
             if (attempt === maxRetries) {
@@ -151,13 +150,13 @@ async function main() {
         }
     }
 
-    const chatUtilityAddress = await chatUtility.getAddress();
+    const chatUtilityAddress = await chatUtility!.getAddress();
 
     console.log(`   ✅ LCAIChatUtility deployed at: ${chatUtilityAddress}`);
-    printExplorerContractLink(chatUtilityAddress, network);
+    printExplorerContractLink("LCAIChatUtility", chatUtilityAddress, explorerUrl);
 
     // Verify contract has code
-    const code = await deployer.provider.getCode(chatUtilityAddress);
+    const code = await deployer.provider!.getCode(chatUtilityAddress);
     console.log(`   📄 Contract code length: ${code.length} bytes`);
     if (code.length <= 2) {
         console.log(`   ❌ WARNING: Contract has no code!`);
@@ -169,13 +168,13 @@ async function main() {
     // Verify deployment
     console.log("   🔍 Verifying deployment...");
     try {
-        const chatFeeLCAI = await chatUtility.chatFeeLCAI();
-        const baseReward = await chatUtility.baseReward();
-        const owner = await chatUtility.owner();
-        const epochDuration = await chatUtility.epochDuration();
-        const maxRewardPerEpoch = await chatUtility.maxRewardPerEpoch();
-        const totalUsersCount = await chatUtility.totalUsersCount();
-        const sessionCount = await chatUtility.sessionCount();
+        const chatFeeLCAI = await chatUtility!.chatFeeLCAI();
+        const baseReward = await chatUtility!.baseReward();
+        const owner = await chatUtility!.owner();
+        const epochDuration = await chatUtility!.epochDuration();
+        const maxRewardPerEpoch = await chatUtility!.maxRewardPerEpoch();
+        const totalUsersCount = await chatUtility!.totalUsersCount();
+        const sessionCount = await chatUtility!.sessionCount();
 
         console.log("   ✅ Contract successfully initialized:");
         console.log(`      Chat Fee: ${ethers.formatEther(chatFeeLCAI)} LCAI`);
@@ -187,7 +186,7 @@ async function main() {
         console.log(`      Total Sessions: ${sessionCount}`);
         console.log(`      💰 LCAIChatUtility IS the reward vault (holds and distributes rewards)`);
         console.log("");
-    } catch (error) {
+    } catch (error: any) {
         console.error("   ❌ Verification failed:", error.message);
         process.exit(1);
     }
@@ -196,7 +195,7 @@ async function main() {
     try {
         saveAbi("LCAIChatUtility", LCAIChatUtility);
         console.log(`📄 ABI saved for LCAIChatUtility`);
-    } catch (error) {
+    } catch (error: any) {
         console.warn(`⚠️ Failed to save ABI for LCAIChatUtility:`, error.message);
     }
     console.log("");
@@ -210,11 +209,11 @@ async function main() {
 
         if (!ownerWalletAddress) {
             console.warn("   ⚠️  OWNER_WALLET_ADDRESS not found in env, using deployer instead");
-            const isDeployerAuthorized = await chatUtility.authorizedRewardIssuers(deployer.address);
+            const isDeployerAuthorized = await chatUtility!.authorizedRewardIssuers(deployer.address);
             console.log(`   Deployer (${deployer.address}) authorization: ${isDeployerAuthorized ? 'Authorized' : 'Not authorized'}`);
 
             if (!isDeployerAuthorized) {
-                const authTx = await chatUtility.authorizeRewardIssuer(deployer.address);
+                const authTx = await chatUtility!.authorizeRewardIssuer(deployer.address);
                 await authTx.wait();
                 console.log("   ✅ Deployer authorized to issue rewards");
             }
@@ -222,16 +221,16 @@ async function main() {
             console.log(`   Owner Wallet Address: ${ownerWalletAddress}`);
 
             // Check if deployer is authorized (from constructor)
-            const isDeployerAuthorized = await chatUtility.authorizedRewardIssuers(deployer.address);
+            const isDeployerAuthorized = await chatUtility!.authorizedRewardIssuers(deployer.address);
             console.log(`   Deployer authorization status: ${isDeployerAuthorized ? 'Authorized' : 'Not authorized'}`);
 
             // Check if owner wallet is already authorized
-            const isOwnerAuthorized = await chatUtility.authorizedRewardIssuers(ownerWalletAddress);
+            const isOwnerAuthorized = await chatUtility!.authorizedRewardIssuers(ownerWalletAddress);
             console.log(`   Owner wallet authorization status: ${isOwnerAuthorized ? 'Authorized' : 'Not authorized'}`);
 
             if (!isOwnerAuthorized) {
                 console.log("   🔧 Authorizing owner wallet to issue rewards...");
-                const authTx = await chatUtility.authorizeRewardIssuer(ownerWalletAddress);
+                const authTx = await chatUtility!.authorizeRewardIssuer(ownerWalletAddress);
                 await authTx.wait();
                 console.log(`   ✅ Owner wallet authorized to issue rewards`);
                 console.log(`   Transaction: ${authTx.hash}`);
@@ -240,7 +239,7 @@ async function main() {
             }
         }
         console.log("");
-    } catch (error) {
+    } catch (error: any) {
         console.error("   ❌ Authorization setup failed:", error.message);
         console.log("   ⚠️  You may need to authorize the owner wallet manually");
         console.log("");
@@ -251,13 +250,13 @@ async function main() {
     console.log(`   Timelock Address: ${timelockAddress}`);
 
     try {
-        const tx = await chatUtility.transferOwnership(timelockAddress);
+        const tx = await chatUtility!.transferOwnership(timelockAddress);
         await tx.wait();
         console.log("   ✅ Ownership transferred to Timelock");
         console.log(`   Transaction: ${tx.hash}`);
         console.log(`   🏛️  LCAIChatUtility is now controlled by DAO governance`);
         console.log("");
-    } catch (error) {
+    } catch (error: any) {
         console.error("   ❌ Ownership transfer failed:", error.message);
         console.log("   ⚠️  Contract deployed but ownership not transferred");
         console.log("   💡 You can manually transfer ownership later");
@@ -268,8 +267,8 @@ async function main() {
     console.log("5️⃣ Funding LCAIChatUtility contract...");
 
     try {
-        const roleAssigner = new RoleAssigner(deployer, explorerUrl);
-        const fundingSuccess = await roleAssigner.fundChatUtility(chatUtilityAddress, '100.0');
+        const roleAssigner = new RoleAssigner(deployer, explorerUrl, ethers);
+        const fundingSuccess = await roleAssigner.fundContract(chatUtilityAddress, 'LCAIChatUtility', '100.0');
 
         if (fundingSuccess) {
             console.log("   ✅ LCAIChatUtility successfully funded with 100 LCAI");
@@ -277,7 +276,7 @@ async function main() {
             console.warn("   ⚠️  LCAIChatUtility funding failed, but deployment completed");
         }
         console.log("");
-    } catch (error) {
+    } catch (error: any) {
         console.error("   ❌ Funding failed:", error.message);
         console.log("   ⚠️  You can manually fund the contract later");
         console.log(`   💡 Send LCAI to: ${chatUtilityAddress}`);
@@ -290,7 +289,7 @@ async function main() {
     try {
         const abiJson = JSON.parse(fs.readFileSync(chatUtilityAbiPath, 'utf8'));
         chatUtilityAbiRaw = abiJson.abi || abiJson;
-    } catch (e) {
+    } catch (e: any) {
         console.warn(`⚠️ Failed to read ABI for LCAIChatUtility at ${chatUtilityAbiPath}:`, e.message);
     }
 
@@ -299,14 +298,14 @@ async function main() {
     try {
         const abiJson = JSON.parse(fs.readFileSync(timelockAbiPath, 'utf8'));
         timelockAbiRaw = abiJson.abi || abiJson;
-    } catch (e) {
+    } catch (e: any) {
         console.warn(`⚠️ Failed to read ABI for TimelockController at ${timelockAbiPath}:`, e.message);
     }
 
     const deploymentData = {
         deploymentId: Date.now().toString(),
         deployedBy: deployer.address,
-        network,
+        network: networkName,
         chainId,
         rpcUrl,
         explorerUrl,
@@ -355,7 +354,7 @@ async function main() {
     // Log deployment to all required locations
     try {
         logChatUtilityDeployment(deploymentData);
-    } catch (error) {
+    } catch (error: any) {
         console.warn('⚠️ Failed to log deployment data:', error.message);
     }
     console.log("");
@@ -366,14 +365,14 @@ async function main() {
     console.log("1. Verify the contracts on the block explorer:");
     console.log("");
     console.log("   TimelockController:");
-    console.log(`   npx hardhat verify --network ${network} ${timelockAddress} \\`);
+    console.log(`   npx hardhat verify --network ${networkName} ${timelockAddress} \\`);
     console.log(`     "${minDelay}" \\`);
     console.log(`     "[${proposers.join(',')}]" \\`);
     console.log(`     "[${executors.join(',')}]" \\`);
     console.log(`     "${admin}"`);
     console.log("");
     console.log("   LCAIChatUtility:");
-    console.log(`   npx hardhat verify --network ${network} ${chatUtilityAddress} \\`);
+    console.log(`   npx hardhat verify --network ${networkName} ${chatUtilityAddress} \\`);
     console.log(`     "${CONFIG.initialChatFee}" \\`);
     console.log(`     "${CONFIG.baseReward}" \\`);
     console.log(`     "${CONFIG.epochDuration}" \\`);
@@ -409,7 +408,7 @@ async function main() {
     console.log('=======================');
     console.log(`   🏛️  TimelockController: ${timelockAddress}`);
     console.log(`   💬 LCAIChatUtility: ${chatUtilityAddress}`);
-    console.log(`   🌐 Network: ${network} (chainId: ${chainId})`);
+    console.log(`   🌐 Network: ${networkName} (chainId: ${chainId})`);
     console.log(`   👤 Deployer: ${deployer.address}`);
     console.log(`   🔗 Explorer: ${explorerUrl}`);
     console.log(`   📅 Timestamp: ${deploymentData.deployedAt}`);

@@ -54,17 +54,17 @@ compile:
 # Deploy all contracts (DAO + Chat Utility)
 deploy-all: compile
 	@echo "$(GREEN)Deploying all contracts to $(NETWORK)...$(NC)"
-	npx hardhat run scripts/deploy-smart-contracts.mjs --network $(NETWORK)
+	npx hardhat run scripts/deployment/deploy-smart-contracts.ts --network $(NETWORK)
 
 # Deploy DAO contracts only
 deploy-dao: compile
 	@echo "$(GREEN)Deploying DAO contracts to $(NETWORK)...$(NC)"
-	npx hardhat run scripts/deploy.ts --network $(NETWORK)
+	npx hardhat run scripts/deployment/deploy.ts --network $(NETWORK)
 
 # Deploy Chat Utility contract only
 deploy-chat-utility: compile
 	@echo "$(GREEN)Deploying Chat Utility contract to $(NETWORK)...$(NC)"
-	npx hardhat run scripts/deploy-chat-utility.mjs --network $(NETWORK)
+	npx hardhat run scripts/deployment/deploy-chat-utility.ts --network $(NETWORK)
 
 # Clean build artifacts
 clean:
@@ -104,7 +104,7 @@ prod-deploy: compile
 	@echo "2. Verified all contract addresses"
 	@echo "3. Tested on testnet first"
 	@read -p "Continue with production deployment? [y/N]: " confirm && [ "$$confirm" = "y" ]
-	npx hardhat run scripts/deploy-smart-contracts.mjs --network $(NETWORK)
+	npx hardhat run scripts/deployment/deploy-smart-contracts.ts --network $(NETWORK)
 
 # Show deployment status
 status:
