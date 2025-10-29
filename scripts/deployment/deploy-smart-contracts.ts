@@ -1,20 +1,19 @@
-//path: lcai-dao-smart-contract/scripts/deploy-smart-contracts.mjs
+
+//path: lcai-dao-smart-contract/scripts/deployment/deploy-smart-contracts.ts
 import { network } from "hardhat";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import hardhatConfig from '../../hardhat.config.js';
 
 // -------------------- ABI & Contract Utilities --------------------
-import { saveAbi } from './abi/saveAbi.mjs';
+import { saveAbi } from '../abi/saveAbi.js';
 
 // -------------------- Print Deployment Info To Console --------------------
-import { printDeployingContract, printExplorerContractLink } from './logs/console/console_logger.mjs';
+import { printDeployingContract, printExplorerContractLink } from '../logs/console/console_logger.js';
 
 // -------------------- Deployment History Logging --------------------
-import { logDeploymentsHistory } from './logs/data/data_logger.mjs';
+import { logDeploymentsHistory } from '../logs/data/data_logger.js';
 
 // -------------------- Role Assignment & Funding --------------------
-import { RoleAssigner } from './roles/assignRoles.mjs';
+import { RoleAssigner } from '../roles/assignRoles.js';
 
 /**
  * Deploy All Smart Contracts
@@ -26,10 +25,6 @@ import { RoleAssigner } from './roles/assignRoles.mjs';
  * 4. Configure roles and permissions
  * 5. Fund contracts as needed
  */
-
-const __filename = fileURLToPath(
-    import.meta.url);
-const __dirname = path.dirname(__filename);
 
 async function main() {
     // Get ethers from network
@@ -57,15 +52,13 @@ async function main() {
     const [deployer] = await ethers.getSigners();
 
     // Get network info
-    const networkName = await network.name;
-    const chainId = 504; // lcaiTestnet chainId
+    const networkName = (network as any).name;
+    const chainId = (await ethers.provider.getNetwork()).chainId;
     console.log(`📡 Deploying to network: ${networkName} (chainId: ${chainId})`);
 
     // Get explorer URL from Hardhat config
-    const hardhatConfig = await
-        import('../hardhat.config.js');
-    const networkConfig = hardhatConfig.default.networks[networkName] || {};
-    const explorerUrl = (networkConfig.explorer && networkConfig.explorer.url) || 'https://testnet.lightscan.app';
+    const networkConfig = (hardhatConfig.networks as any)?.[networkName] || {};
+    const explorerUrl = networkConfig.explorer?.url || 'https://testnet.lightscan.app';
 
     console.log(`👤 Deployer: ${deployer.address}`);
     const balance = await ethers.provider.getBalance(deployer.address);
@@ -82,7 +75,7 @@ async function main() {
     console.log("");
 
     const roleAssigner = new RoleAssigner(deployer, explorerUrl, ethers);
-    const deploymentResults = {};
+    const deploymentResults: any = {};
 
     // ==================== STEP 1: Deploy DAO Contracts ====================
     console.log("1️⃣ Deploying DAO Contracts...");
@@ -92,7 +85,7 @@ async function main() {
     console.log("   🏛️ Deploying PresaleVotingPower...");
     printDeployingContract("PresaleVotingPower");
     const PresaleVotingPower = await ethers.getContractFactory("PresaleVotingPower", deployer);
-    const presaleVotingPower = await PresaleVotingPower.deploy();
+    const presaleVotingPower = await PresaleVotingPower.deploy(deployer.address);
     await presaleVotingPower.waitForDeployment();
     const presaleVotingPowerAddress = await presaleVotingPower.getAddress();
     console.log(`   ✅ PresaleVotingPower deployed at: ${presaleVotingPowerAddress}`);
@@ -118,7 +111,8 @@ async function main() {
     const LCAIGovernor = await ethers.getContractFactory("LCAIGovernor", deployer);
     const governor = await LCAIGovernor.deploy(
         presaleVotingPowerAddress, // voting token
-        timelockAddress // timelock
+        timelockAddress, // timelock
+        deployer.address // admin (deployer for testing, Gnosis Safe for production)
     );
     await governor.waitForDeployment();
     const governorAddress = await governor.getAddress();
@@ -131,7 +125,7 @@ async function main() {
         saveAbi("LCAITimeLock", LCAITimeLock);
         saveAbi("LCAIGovernor", LCAIGovernor);
         console.log("   📄 DAO ABIs saved");
-    } catch (error) {
+    } catch (error: any) {
         console.warn("   ⚠️ Failed to save DAO ABIs:", error.message);
     }
 
@@ -170,16 +164,22 @@ async function main() {
             const gasPrice = ethers.parseUnits("50", "gwei");
             console.log(`   ⛽ Gas price: ${ethers.formatUnits(gasPrice, 'gwei')} gwei`);
 
-            chatUtility = await LCAIChatUtility.deploy(...constructorArgs, {
-                gasPrice: gasPrice,
-                gasLimit: 8000000
-            });
+            chatUtility = await LCAIChatUtility.deploy(
+                CONFIG.initialChatFee,
+                CONFIG.baseReward,
+                CONFIG.epochDuration,
+                CONFIG.maxRewardPerEpoch,
+                {
+                    gasPrice: gasPrice,
+                    gasLimit: 8000000
+                }
+            );
             await chatUtility.waitForDeployment();
 
             console.log(`   ✅ LCAIChatUtility deployed successfully on attempt ${attempt}`);
             break;
 
-        } catch (error) {
+        } catch (error: any) {
             console.log(`   ❌ Attempt ${attempt} failed: ${error.message}`);
 
             if (attempt === maxRetries) {
@@ -191,7 +191,7 @@ async function main() {
         }
     }
 
-    const chatUtilityAddress = await chatUtility.getAddress();
+    const chatUtilityAddress = await chatUtility!.getAddress();
     console.log(`   ✅ LCAIChatUtility deployed at: ${chatUtilityAddress}`);
     printExplorerContractLink("LCAIChatUtility", chatUtilityAddress, explorerUrl);
 
@@ -199,7 +199,7 @@ async function main() {
     try {
         saveAbi("LCAIChatUtility", LCAIChatUtility);
         console.log("   📄 Chat Utility ABI saved");
-    } catch (error) {
+    } catch (error: any) {
         console.warn("   ⚠️ Failed to save Chat Utility ABI:", error.message);
     }
 
@@ -215,14 +215,14 @@ async function main() {
         const ownerWalletAddress = process.env.OWNER_WALLET_ADDRESS;
         if (ownerWalletAddress) {
             console.log(`   🔧 Authorizing owner wallet (${ownerWalletAddress}) to issue rewards...`);
-            const authTx = await chatUtility.authorizeRewardIssuer(ownerWalletAddress);
+            const authTx = await chatUtility!.authorizeRewardIssuer(ownerWalletAddress);
             await authTx.wait();
             console.log(`   ✅ Owner wallet authorized to issue rewards`);
         }
 
         // Transfer ownership of LCAIChatUtility to TimelockController
         console.log(`   🔧 Transferring LCAIChatUtility ownership to TimelockController...`);
-        const transferTx = await chatUtility.transferOwnership(timelockAddress);
+        const transferTx = await chatUtility!.transferOwnership(timelockAddress);
         await transferTx.wait();
         console.log(`   ✅ LCAIChatUtility ownership transferred to TimelockController`);
 
@@ -231,7 +231,7 @@ async function main() {
         await roleAssigner.configureTimelockRoles(timelockAddress, governorAddress);
 
         console.log(`   ✅ DAO governance configured successfully`);
-    } catch (error) {
+    } catch (error: any) {
         console.error(`   ❌ DAO configuration failed:`, error.message);
         console.log(`   ⚠️ Contracts deployed but governance not fully configured`);
     }
@@ -245,7 +245,7 @@ async function main() {
     try {
         // Fund LCAIChatUtility
         console.log(`   💰 Funding LCAIChatUtility...`);
-        const fundingSuccess = await roleAssigner.fundChatUtility(chatUtilityAddress, '100.0');
+        const fundingSuccess = await roleAssigner.fundContract(chatUtilityAddress, 'LCAIChatUtility', '100.0');
         if (fundingSuccess) {
             console.log(`   ✅ LCAIChatUtility funded with 100 LCAI`);
         } else {
@@ -262,7 +262,7 @@ async function main() {
         //     console.warn(`   ⚠️ TimelockController funding failed`);
         // }
 
-    } catch (error) {
+    } catch (error: any) {
         console.error(`   ❌ Funding failed:`, error.message);
         console.log(`   ⚠️ You can manually fund the contracts later`);
     }
@@ -319,7 +319,7 @@ async function main() {
     try {
         logDeploymentsHistory(deploymentData);
         console.log("   📊 Deployment data logged successfully");
-    } catch (error) {
+    } catch (error: any) {
         console.warn("   ⚠️ Failed to log deployment data:", error.message);
     }
 
