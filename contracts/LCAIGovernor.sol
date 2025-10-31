@@ -190,10 +190,10 @@ contract LCAIGovernor is
 
     /**
      * @dev Updates the admin address
-     * @notice Can only be called through governance (via timelock)
+     * @notice Can only be called by the current admin (intended to be Gnosis Safe multisig)
      * @param newAdmin The new admin address (must be a contract)
      */
-    function updateAdmin(address newAdmin) external onlyGovernance {
+    function updateAdmin(address newAdmin) external onlyAdmin {
         if (newAdmin == address(0)) {
             revert InvalidAdminAddress(newAdmin);
         }
