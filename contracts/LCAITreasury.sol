@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -6,7 +6,6 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
-    
     address public admin;
 
     uint256 public spent;
@@ -17,10 +16,22 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
     bool public isWhitelisted = false;
     bool public isBlacklisted = false;
 
-    event WhitelistedAddressUpdated(address indexed _address, bool indexed _isWhitelisted);
-    event BlacklistedAddressUpdated(address indexed _address, bool indexed _isBlacklisted);
-    event WhitelistedStatusUpdated(bool indexed previousStatus, bool indexed newStatus);
-    event BlacklistedStatusUpdated(bool indexed previousStatus, bool indexed newStatus);
+    event WhitelistedAddressUpdated(
+        address indexed _address,
+        bool indexed _isWhitelisted
+    );
+    event BlacklistedAddressUpdated(
+        address indexed _address,
+        bool indexed _isBlacklisted
+    );
+    event WhitelistedStatusUpdated(
+        bool indexed previousStatus,
+        bool indexed newStatus
+    );
+    event BlacklistedStatusUpdated(
+        bool indexed previousStatus,
+        bool indexed newStatus
+    );
 
     event AdminUpdated(address indexed previousAdmin, address indexed newAdmin);
 
@@ -40,9 +51,14 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
         _updateAdmin(_admin);
     }
 
-    function transfer(address _recipient, uint256 _amount) external nonReentrant whenNotPaused onlyOwner() {
-        if (isWhitelisted && !whitelistedAddresses[_recipient]) revert WhitelistedAddressNotAllowed();
-        if (isBlacklisted && blacklistedAddresses[_recipient]) revert BlacklistedAddressNotAllowed();
+    function transfer(
+        address _recipient,
+        uint256 _amount
+    ) external nonReentrant whenNotPaused onlyOwner {
+        if (isWhitelisted && !whitelistedAddresses[_recipient])
+            revert WhitelistedAddressNotAllowed();
+        if (isBlacklisted && blacklistedAddresses[_recipient])
+            revert BlacklistedAddressNotAllowed();
         if (address(this).balance < _amount) revert InsufficientBalance();
         (bool success, ) = _recipient.call{value: _amount}("");
         if (!success) revert TransferFailed();
@@ -61,16 +77,22 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
     function _updateAdmin(address _admin) internal {
         address previousAdmin = admin;
         admin = _admin;
-        if(_admin.code.length == 0) revert AdminMustBeMultisig();
+        if (_admin.code.length == 0) revert AdminMustBeMultisig();
         emit AdminUpdated(previousAdmin, _admin);
     }
 
-    function setWhitelistedAddress(address _address, bool _isWhitelisted) external onlyAdmin {
+    function setWhitelistedAddress(
+        address _address,
+        bool _isWhitelisted
+    ) external onlyAdmin {
         whitelistedAddresses[_address] = _isWhitelisted;
         emit WhitelistedAddressUpdated(_address, _isWhitelisted);
     }
 
-    function setBlacklistedAddress(address _address, bool _isBlacklisted) external onlyAdmin {
+    function setBlacklistedAddress(
+        address _address,
+        bool _isBlacklisted
+    ) external onlyAdmin {
         blacklistedAddresses[_address] = _isBlacklisted;
         emit BlacklistedAddressUpdated(_address, _isBlacklisted);
     }
