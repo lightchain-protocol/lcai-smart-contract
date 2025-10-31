@@ -917,46 +917,25 @@ describe("LCAIGovernor", function () {
     const initialAdmin = await governor.admin();
     expect(initialAdmin).to.equal(await adminContract.getAddress());
 
-    // Distribute tokens
-    await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
-    ]);
-
     // Deploy a new MockAdmin contract to use as the new admin
     const newAdminContract = await ethers.deployContract("MockAdmin", [
       voter2.address, // voter2 will be owner of new admin
     ]);
 
-    // Create proposal to update admin to new MockAdmin
+    // Admin directly updates to new MockAdmin
     const newAdminAddress = await newAdminContract.getAddress();
-    const targets = [await governor.getAddress()];
-    const values = [0n];
-    const calldatas = [
-      governor.interface.encodeFunctionData("updateAdmin", [newAdminAddress]),
-    ];
-    const description = "Update admin to new MockAdmin";
-    const { proposalId, proposalData } = await createProposal(
-      governor,
-      targets,
-      values,
-      calldatas,
-      description,
-      voter1
-    );
-
-    // Vote, queue and execute
-    await advanceToVotingAndVote(governor, proposalId, [
-      { voter: voter1, support: 1 },
-    ]);
-    await queueProposal(governor, proposalData);
-
-    const lastBlock = await ethers.provider.getBlockNumber();
-    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
-    await executeProposal(governor, proposalData);
+    const governorAddress = await governor.getAddress();
+    const calldata = governor.interface.encodeFunctionData("updateAdmin", [newAdminAddress]);
+    await adminContract.connect(deployer).execute(governorAddress, calldata);
 
     // Verify admin was updated
     const updatedAdmin = await governor.admin();
     expect(updatedAdmin).to.equal(newAdminAddress);
+
+    // Distribute tokens for subsequent test
+    await distributeTokensAndDelegate(token, [
+      { voter: voter1, amount: "50000" },
+    ]);
 
     // Verify old admin can no longer emergency cancel
     const {
@@ -989,14 +968,13 @@ describe("LCAIGovernor", function () {
     }
 
     // Verify new admin can emergency cancel
-    const governorAddress = await governor.getAddress();
-    const calldata = governor.interface.encodeFunctionData("emergencyCancel", [
+    const calldata2 = governor.interface.encodeFunctionData("emergencyCancel", [
         proposalData2.targets,
         proposalData2.values,
         proposalData2.calldatas,
         proposalData2.descriptionHash
     ]);
-    await newAdminContract.connect(voter2).execute(governorAddress, calldata);
+    await newAdminContract.connect(voter2).execute(governorAddress, calldata2);
 
     const finalState = await governor.state(proposalId2);
     expect(finalState).to.equal(ProposalState.Canceled);
@@ -1103,41 +1081,15 @@ describe("LCAIGovernor", function () {
       voter2.address,
     ]);
 
-    // Create proposal to update admin
+    // Admin directly updates to new admin
     const newAdminAddress = await newAdminContract.getAddress();
     const oldAdminAddress = await adminContract.getAddress();
-    const targets = [await governor.getAddress()];
-    const values = [0n];
-    const calldatas = [
-      governor.interface.encodeFunctionData("updateAdmin", [newAdminAddress]),
-    ];
-    const description = "Update admin event test";
-    const { proposalId, proposalData } = await createProposal(
-      governor,
-      targets,
-      values,
-      calldatas,
-      description,
-      voter1
-    );
-
-    // Vote, queue and execute
-    await advanceToVotingAndVote(governor, proposalId, [
-      { voter: voter1, support: 1 },
-    ]);
-    await queueProposal(governor, proposalData);
-
-    const lastBlock = await ethers.provider.getBlockNumber();
-    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
+    const governorAddress = await governor.getAddress();
+    const updateCalldata = governor.interface.encodeFunctionData("updateAdmin", [newAdminAddress]);
 
     // Check for AdminUpdated event
     await expect(
-      governor.execute(
-        proposalData.targets,
-        proposalData.values,
-        proposalData.calldatas,
-        proposalData.descriptionHash
-      )
+      adminContract.connect(deployer).execute(governorAddress, updateCalldata)
     )
       .to.emit(governor, "AdminUpdated")
       .withArgs(oldAdminAddress, newAdminAddress);
@@ -1160,16 +1112,15 @@ describe("LCAIGovernor", function () {
       );
 
     // Check for EmergencyCancellation event
-    const governorAddress = await governor.getAddress();
-    const calldata = governor.interface.encodeFunctionData("emergencyCancel", [
+    const cancelCalldata = governor.interface.encodeFunctionData("emergencyCancel", [
           proposalData2.targets,
           proposalData2.values,
           proposalData2.calldatas,
           proposalData2.descriptionHash
     ]);
-    
+
     await expect(
-      newAdminContract.connect(voter2).execute(governorAddress, calldata)
+      newAdminContract.connect(voter2).execute(governorAddress, cancelCalldata)
     )
       .to.emit(governor, "EmergencyCancellation")
       .withArgs(proposalId2, newAdminAddress);
@@ -1479,12 +1430,17 @@ describe("LCAIGovernor", function () {
     // Setup timelock roles
     await setupTimelockRoles(timelock, governor);
 
-    // Try to update admin directly as admin (should fail)
+    // Deploy a new MockAdmin to test
+    const newAdminContract = await ethers.deployContract("MockAdmin", [
+      voter2.address,
+    ]);
+
+    // Try to update admin directly as deployer EOA (not the admin contract - should fail)
     try {
-      await governor.connect(deployer).updateAdmin(voter2.address);
-      expect.fail("Should have failed - admin cannot update directly");
+      await governor.connect(deployer).updateAdmin(await newAdminContract.getAddress());
+      expect.fail("Should have failed - non-admin cannot update");
     } catch (error: any) {
-      expect(error.message.includes("GovernorOnlyExecutor")).ok;
+      expect(error.message.includes("UnauthorizedAdmin")).to.be.true;
     }
 
     // Verify admin is still the admin contract
@@ -1499,59 +1455,36 @@ describe("LCAIGovernor", function () {
     // Setup timelock roles
     await setupTimelockRoles(timelock, governor);
 
+    // Deploy a mock contract for testing
+    const mockAdmin = await ethers.deployContract("MockAdmin", [voter2.address]);
+
     // Try to update admin as random EOA (should fail)
     try {
-      await governor.connect(voter1).updateAdmin(voter2.address);
+      await governor.connect(voter1).updateAdmin(await mockAdmin.getAddress());
       expect.fail("Should have failed - EOA cannot update admin");
     } catch (error: any) {
-      expect(error.message.includes("GovernorOnlyExecutor")).ok;
+      expect(error.message.includes("UnauthorizedAdmin")).to.be.true;
     }
   });
 
   it("Should only allow updateAdmin through governance proposal", async function () {
     // Deploy contracts
-    const { token, timelock, governor, minDelay } =
+    const { token, timelock, governor, minDelay, adminContract } =
       await deployGovernanceContracts(60n);
 
     // Setup timelock roles
     await setupTimelockRoles(timelock, governor);
-
-    // Distribute tokens
-    await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
-    ]);
 
     // Deploy a mock contract to use as new admin (since admin must be a contract)
     const mockSafe = await ethers.deployContract("MockAdmin", [
       deployer.address,
     ]);
 
-    // Create proposal to update admin
+    // Admin directly updates (this is the only way to update)
     const newAdminAddress = await mockSafe.getAddress();
-    const targets = [await governor.getAddress()];
-    const values = [0n];
-    const calldatas = [
-      governor.interface.encodeFunctionData("updateAdmin", [newAdminAddress]),
-    ];
-    const description = "Update admin through governance";
-    const { proposalId, proposalData } = await createProposal(
-      governor,
-      targets,
-      values,
-      calldatas,
-      description,
-      voter1
-    );
-
-    // Vote, queue and execute
-    await advanceToVotingAndVote(governor, proposalId, [
-      { voter: voter1, support: 1 },
-    ]);
-    await queueProposal(governor, proposalData);
-
-    const lastBlock = await ethers.provider.getBlockNumber();
-    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
-    await executeProposal(governor, proposalData);
+    const governorAddress = await governor.getAddress();
+    const calldata = governor.interface.encodeFunctionData("updateAdmin", [newAdminAddress]);
+    await adminContract.connect(deployer).execute(governorAddress, calldata);
 
     // Verify admin was updated
     const updatedAdmin = await governor.admin();
@@ -1560,97 +1493,37 @@ describe("LCAIGovernor", function () {
 
   it("Should prevent updateAdmin with zero address", async function () {
     // Deploy contracts
-    const { token, timelock, governor, minDelay } =
+    const { token, timelock, governor, minDelay, adminContract } =
       await deployGovernanceContracts(60n);
 
     // Setup timelock roles
     await setupTimelockRoles(timelock, governor);
 
-    // Distribute tokens
-    await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
+    // Try to update admin to zero address via admin
+    const governorAddress = await governor.getAddress();
+    const calldata = governor.interface.encodeFunctionData("updateAdmin", [
+      "0x0000000000000000000000000000000000000000",
     ]);
 
-    // Create proposal to update admin to zero address
-    const targets = [await governor.getAddress()];
-    const values = [0n];
-    const calldatas = [
-      governor.interface.encodeFunctionData("updateAdmin", [
-        "0x0000000000000000000000000000000000000000",
-      ]),
-    ];
-    const description = "Try to set admin to zero address";
-    const { proposalId, proposalData } = await createProposal(
-      governor,
-      targets,
-      values,
-      calldatas,
-      description,
-      voter1
-    );
-
-    // Vote, queue and execute
-    await advanceToVotingAndVote(governor, proposalId, [
-      { voter: voter1, support: 1 },
-    ]);
-    await queueProposal(governor, proposalData);
-
-    const lastBlock = await ethers.provider.getBlockNumber();
-    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
-
-    // Try to execute (should fail)
-    try {
-      await executeProposal(governor, proposalData);
-      expect.fail("Should have failed - cannot set admin to zero address");
-    } catch (error: any) {
-      expect(error.message.includes("InvalidAdminAddress")).ok;
-    }
+    await expect(
+      adminContract.connect(deployer).execute(governorAddress, calldata)
+    ).to.be.revertedWith("MockAdmin: execution failed");
   });
 
   it("Should prevent updateAdmin with EOA address", async function () {
     // Deploy contracts
-    const { token, timelock, governor, minDelay } =
+    const { token, timelock, governor, minDelay, adminContract } =
       await deployGovernanceContracts(60n);
 
     // Setup timelock roles
     await setupTimelockRoles(timelock, governor);
 
-    // Distribute tokens
-    await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
-    ]);
+    // Try to update admin to EOA via admin
+    const governorAddress = await governor.getAddress();
+    const calldata = governor.interface.encodeFunctionData("updateAdmin", [voter2.address]);
 
-    // Create proposal to update admin to EOA
-    const targets = [await governor.getAddress()];
-    const values = [0n];
-    const calldatas = [
-      governor.interface.encodeFunctionData("updateAdmin", [voter2.address]),
-    ];
-    const description = "Try to set admin to EOA";
-    const { proposalId, proposalData } = await createProposal(
-      governor,
-      targets,
-      values,
-      calldatas,
-      description,
-      voter1
-    );
-
-    // Vote, queue and execute
-    await advanceToVotingAndVote(governor, proposalId, [
-      { voter: voter1, support: 1 },
-    ]);
-    await queueProposal(governor, proposalData);
-
-    const lastBlock = await ethers.provider.getBlockNumber();
-    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
-
-    // Try to execute (should fail)
-    try {
-      await executeProposal(governor, proposalData);
-      expect.fail("Should have failed - admin must be a contract");
-    } catch (error: any) {
-      expect(error.message.includes("AdminMustBeContract")).ok;
-    }
+    await expect(
+      adminContract.connect(deployer).execute(governorAddress, calldata)
+    ).to.be.revertedWith("MockAdmin: execution failed");
   });
 });
