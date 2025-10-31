@@ -8,13 +8,15 @@ import {GovernorVotesQuorumFraction} from "@openzeppelin/contracts/governance/ex
 import {GovernorTimelockControl} from "@openzeppelin/contracts/governance/extensions/GovernorTimelockControl.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 contract LCAIGovernor is
     Governor,
     GovernorCountingSimple,
     GovernorVotes,
     GovernorVotesQuorumFraction,
-    GovernorTimelockControl
+    GovernorTimelockControl,
+    Pausable
 {
     // Admin address (multisig wallet for emergency actions)
     address public admin;
@@ -28,6 +30,16 @@ contract LCAIGovernor is
 
     // Custom errors
     error UnauthorizedAdmin(address caller);
+    error InvalidAdminAddress(address provided);
+    error AdminMustBeContract(address provided);
+
+    // Modifiers
+    modifier onlyAdmin() {
+        if (msg.sender != admin) {
+            revert UnauthorizedAdmin(msg.sender);
+        }
+        _;
+    }
 
     constructor(
         IVotes _token,
@@ -39,6 +51,13 @@ contract LCAIGovernor is
         GovernorVotesQuorumFraction(4)
         GovernorTimelockControl(_timelock)
     {
+        if (_admin == address(0)) {
+            revert InvalidAdminAddress(_admin);
+        }
+        // Check that admin is a contract (for Gnosis Safe multisig)
+        if (_admin.code.length == 0) {
+            revert AdminMustBeContract(_admin);
+        }
         admin = _admin;
         emit AdminUpdated(address(0), _admin);
     }
@@ -53,6 +72,44 @@ contract LCAIGovernor is
 
     function proposalThreshold() public pure override returns (uint256) {
         return 0; // 0 tokens required to propose
+    }
+
+    // ==================== Circuit Breaker Overrides ====================
+
+    /**
+     * @dev Override propose to add whenNotPaused check
+     */
+    function propose(
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        string memory description
+    ) public override whenNotPaused returns (uint256) {
+        return super.propose(targets, values, calldatas, description);
+    }
+
+    /**
+     * @dev Override queue to add whenNotPaused check
+     */
+    function queue(
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        bytes32 descriptionHash
+    ) public override whenNotPaused returns (uint256) {
+        return super.queue(targets, values, calldatas, descriptionHash);
+    }
+
+    /**
+     * @dev Override execute to add whenNotPaused check
+     */
+    function execute(
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        bytes32 descriptionHash
+    ) public payable override whenNotPaused returns (uint256) {
+        return super.execute(targets, values, calldatas, descriptionHash);
     }
 
     function state(
@@ -133,16 +190,36 @@ contract LCAIGovernor is
 
     /**
      * @dev Updates the admin address
-     * @notice Can only be called by the admin
-     * @param newAdmin The new admin address
+     * @notice Can only be called by the current admin (intended to be Gnosis Safe multisig)
+     * @param newAdmin The new admin address (must be a contract)
      */
-    function updateAdmin(address newAdmin) external {
-        if (msg.sender != admin) {
-            revert UnauthorizedAdmin(msg.sender);
+    function updateAdmin(address newAdmin) external onlyAdmin {
+        if (newAdmin == address(0)) {
+            revert InvalidAdminAddress(newAdmin);
+        }
+        // Check that new admin is a contract (for Gnosis Safe multisig)
+        if (newAdmin.code.length == 0) {
+            revert AdminMustBeContract(newAdmin);
         }
         address previousAdmin = admin;
         admin = newAdmin;
         emit AdminUpdated(previousAdmin, newAdmin);
+    }
+
+    /**
+     * @dev Pauses the governor, preventing propose, queue, and execute
+     * @notice Can only be called by the admin
+     */
+    function pause() external onlyAdmin {
+        _pause();
+    }
+
+    /**
+     * @dev Unpauses the governor, restoring propose, queue, and execute
+     * @notice Can only be called by the admin
+     */
+    function unpause() external onlyAdmin {
+        _unpause();
     }
 
     /**
@@ -159,11 +236,7 @@ contract LCAIGovernor is
         uint256[] memory values,
         bytes[] memory calldatas,
         bytes32 descriptionHash
-    ) external returns (uint256) {
-        if (msg.sender != admin) {
-            revert UnauthorizedAdmin(msg.sender);
-        }
-
+    ) external onlyAdmin returns (uint256) {
         uint256 proposalId = hashProposal(
             targets,
             values,
