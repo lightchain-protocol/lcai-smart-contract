@@ -111,9 +111,32 @@ contract LCAIChatUtility is Ownable, ReentrancyGuard, Pausable {
     /// @notice Mapping from user address to their index
     mapping(address => uint256) public userAddressToIndex;
     
-    // Prepaid Message Credits
+    // Prepaid Message Credits (deprecated - migrating to subscriptions)
     /// @notice Prepaid message credits per user (number of messages available)
     mapping(address => uint256) private _prepaidMessageCredits;
+    
+    // Subscription System
+    /// @notice Subscription plan details
+    struct SubscriptionPlan {
+        uint256 priceMonthly;  // Price in wei for 30-day subscription
+        uint256 priceYearly;   // Price in wei for 365-day subscription
+        bool isActive;
+    }
+    
+    /// @notice User subscription data
+    struct UserSubscription {
+        uint256 expiryTimestamp;  // When subscription expires (0 = no subscription)
+        bool isActive;
+    }
+    
+    /// @notice Subscription plan (single default plan, updateable by owner)
+    SubscriptionPlan public subscriptionPlan;
+    
+    /// @notice User subscriptions
+    mapping(address => UserSubscription) public userSubscriptions;
+    
+    /// @notice Treasury address for subscription payments
+    address payable public treasuryAddress;
     
     // Access Control for Rewards
     /// @notice Authorized addresses that can issue rewards (e.g., backend service)
@@ -153,9 +176,15 @@ contract LCAIChatUtility is Ownable, ReentrancyGuard, Pausable {
     // Configuration Events
     event ChatFeeUpdated(uint256 oldFee, uint256 newFee);
     
-    // Prepaid Events
+    // Prepaid Events (deprecated)
     event MessagesPrepaid(address indexed user, uint256 count, uint256 totalCredits);
     event PrepaidMessageConsumed(address indexed user, uint256 remainingCredits);
+    
+    // Subscription Events
+    event SubscriptionPurchased(address indexed user, uint256 planType, uint256 expiryTimestamp, uint256 amount);
+    event SubscriptionPlanUpdated(uint256 monthlyPrice, uint256 yearlyPrice);
+    event TreasuryAddressUpdated(address indexed oldTreasury, address indexed newTreasury);
+    event SubscriptionExpired(address indexed user, uint256 expiredAt);
     
     // Authorization Events
     event RewardIssuerAuthorized(address indexed issuer);
@@ -976,6 +1005,88 @@ contract LCAIChatUtility is Ownable, ReentrancyGuard, Pausable {
         if (isChatReward) {
             stats.averageQuality = (stats.averageQuality * (stats.totalInteractions - 1) + 800) / stats.totalInteractions;
         }
+    }
+    
+    // ============================================================================
+    // SUBSCRIPTION FUNCTIONS
+    // ============================================================================
+    
+    /**
+     * @notice Subscribe to a plan (monthly or yearly)
+     * @param planType 0 = monthly, 1 = yearly
+     */
+    function subscribePlan(uint256 planType) external payable whenNotPaused nonReentrant {
+        require(subscriptionPlan.isActive, "Subscription plan not active");
+        require(planType == 0 || planType == 1, "Invalid plan type (0=monthly, 1=yearly)");
+        require(treasuryAddress != address(0), "Treasury address not set");
+        
+        uint256 price = planType == 0 ? subscriptionPlan.priceMonthly : subscriptionPlan.priceYearly;
+        require(msg.value == price, "Incorrect subscription payment");
+        
+        uint256 duration = planType == 0 ? 30 days : 365 days;
+        uint256 newExpiry = block.timestamp + duration;
+        
+        // Extend existing subscription or create new one
+        UserSubscription storage sub = userSubscriptions[msg.sender];
+        if (sub.expiryTimestamp > block.timestamp) {
+            // Extend from current expiry
+            newExpiry = sub.expiryTimestamp + duration;
+        }
+        
+        sub.expiryTimestamp = newExpiry;
+        sub.isActive = true;
+        
+        // Route payment to treasury
+        (bool success, ) = treasuryAddress.call{value: msg.value}("");
+        require(success, "Treasury payment failed");
+        
+        emit SubscriptionPurchased(msg.sender, planType, newExpiry, msg.value);
+    }
+    
+    /**
+     * @notice Check if an address has an active subscription
+     * @param user User address to check
+     * @return True if subscription is active and not expired
+     */
+    function hasActiveSubscription(address user) external view returns (bool) {
+        UserSubscription storage sub = userSubscriptions[user];
+        return sub.isActive && sub.expiryTimestamp > block.timestamp;
+    }
+    
+    /**
+     * @notice Get subscription expiry timestamp for a user
+     * @param user User address
+     * @return Expiry timestamp (0 if no subscription)
+     */
+    function getSubscriptionExpiry(address user) external view returns (uint256) {
+        return userSubscriptions[user].expiryTimestamp;
+    }
+    
+    /**
+     * @notice Update subscription plan prices (DAO/Owner only)
+     * @param monthlyPrice New monthly price in wei
+     * @param yearlyPrice New yearly price in wei
+     */
+    function updateSubscriptionPlan(uint256 monthlyPrice, uint256 yearlyPrice) external onlyOwner {
+        require(monthlyPrice > 0, "Monthly price must be > 0");
+        require(yearlyPrice > 0, "Yearly price must be > 0");
+        
+        subscriptionPlan.priceMonthly = monthlyPrice;
+        subscriptionPlan.priceYearly = yearlyPrice;
+        subscriptionPlan.isActive = true;
+        
+        emit SubscriptionPlanUpdated(monthlyPrice, yearlyPrice);
+    }
+    
+    /**
+     * @notice Set treasury address for subscription payments
+     * @param _treasuryAddress New treasury address
+     */
+    function setTreasuryAddress(address payable _treasuryAddress) external onlyOwner {
+        require(_treasuryAddress != address(0), "Invalid treasury address");
+        address old = treasuryAddress;
+        treasuryAddress = _treasuryAddress;
+        emit TreasuryAddressUpdated(old, _treasuryAddress);
     }
     
     // ============================================================================
