@@ -145,10 +145,10 @@ describe("LCAIChatSubscription", function () {
     );
 
     // Check subscription details
-    const [tier, expiry, isActive, isExpired] =
-      await subscription.getSubscription(user1.address);
+    const [tier, expiry, isExpired] = await subscription.getSubscription(
+      user1.address
+    );
     expect(tier).to.equal(TIER_1);
-    expect(isActive).to.equal(true);
     expect(isExpired).to.equal(false);
 
     // Check subscriber count
@@ -190,10 +190,10 @@ describe("LCAIChatSubscription", function () {
     );
 
     // Check subscription details
-    const [tier, expiry, isActive, isExpired] =
-      await subscription.getSubscription(user1.address);
+    const [tier, expiry, isExpired] = await subscription.getSubscription(
+      user1.address
+    );
     expect(tier).to.equal(TIER_2);
-    expect(isActive).to.equal(true);
     expect(isExpired).to.equal(false);
   });
 
@@ -287,7 +287,7 @@ describe("LCAIChatSubscription", function () {
 
   // ===== SUBSCRIPTION RENEWAL TESTS =====
 
-  it("Should extend subscription when renewing same tier", async function () {
+  it("Should reject subscription renewal while still active", async function () {
     const { subscription } = await deploySubscriptionContract();
 
     const tier1Monthly = parseEther("2");
@@ -297,31 +297,15 @@ describe("LCAIChatSubscription", function () {
       .connect(user1)
       .subscribe(TIER_1, DURATION_MONTHLY, { value: tier1Monthly });
 
-    const [, firstExpiry] = await subscription.getSubscription(user1.address);
-
-    // Renew subscription
+    // Try to renew subscription while still active (should fail)
     await expect(
       subscription
         .connect(user1)
         .subscribe(TIER_1, DURATION_MONTHLY, { value: tier1Monthly })
-    )
-      .to.emit(subscription, "SubscriptionRenewed")
-      .withArgs(
-        user1.address,
-        TIER_1,
-        DURATION_MONTHLY,
-        tier1Monthly,
-        firstExpiry + MONTHLY_DURATION
-      );
-
-    const [, newExpiry] = await subscription.getSubscription(user1.address);
-    expect(newExpiry).to.equal(firstExpiry + MONTHLY_DURATION);
-
-    // Subscriber count should still be 1
-    expect(await subscription.getTotalActiveSubscribers()).to.equal(1n);
+    ).to.be.revertedWithCustomError(subscription, "HaveActiveSubscription");
   });
 
-  it("Should start fresh when switching tiers", async function () {
+  it("Should reject switching tiers while subscription is active", async function () {
     const { subscription } = await deploySubscriptionContract();
 
     const tier1Monthly = parseEther("2");
@@ -331,23 +315,13 @@ describe("LCAIChatSubscription", function () {
     await subscription
       .connect(user1)
       .subscribe(TIER_1, DURATION_MONTHLY, { value: tier1Monthly });
-    const [, firstExpiry] = await subscription.getSubscription(user1.address);
 
-    const timestamp = await getTimestamp();
-
-    // Switch to tier 2
+    // Try to switch to tier 2 while tier 1 is still active (should fail)
     await expect(
       subscription
         .connect(user1)
         .subscribe(TIER_2, DURATION_MONTHLY, { value: tier2Monthly })
-    ).to.emit(subscription, "SubscriptionPurchased");
-
-    const [newTier, newExpiry] = await subscription.getSubscription(
-      user1.address
-    );
-    expect(newTier).to.equal(TIER_2);
-    // Should start from current time, not extend previous expiry
-    expect(newExpiry).to.be.closeTo(timestamp + MONTHLY_DURATION + 2n, 5n);
+    ).to.be.revertedWithCustomError(subscription, "HaveActiveSubscription");
   });
 
   it("Should handle subscription after expiry", async function () {
@@ -364,10 +338,7 @@ describe("LCAIChatSubscription", function () {
     await networkHelpers.time.increase(31n * 24n * 60n * 60n); // 31 days
 
     // Check subscription is expired
-    const [, , isActive, isExpired] = await subscription.getSubscription(
-      user1.address
-    );
-    expect(isActive).to.equal(false);
+    const [, , isExpired] = await subscription.getSubscription(user1.address);
     expect(isExpired).to.equal(true);
     expect(await subscription.hasActiveSubscription(user1.address)).to.equal(
       false
@@ -594,27 +565,22 @@ describe("LCAIChatSubscription", function () {
   it("Should return all plan details", async function () {
     const { subscription } = await deploySubscriptionContract();
 
-    const [tiers, monthlyPrices, yearlyPrices, activeStatus] = await subscription.getAllPlans();
-
-    // Check tiers
-    expect(tiers[0]).to.equal(TIER_1);
-    expect(tiers[1]).to.equal(TIER_2);
-    expect(tiers[2]).to.equal(TIER_3);
+    const plans = await subscription.getAllPlans();
 
     // Check monthly prices
-    expect(monthlyPrices[0]).to.equal(parseEther("2"));
-    expect(monthlyPrices[1]).to.equal(parseEther("5"));
-    expect(monthlyPrices[2]).to.equal(parseEther("10"));
+    expect(plans[0].monthlyPrice).to.equal(parseEther("2"));
+    expect(plans[1].monthlyPrice).to.equal(parseEther("5"));
+    expect(plans[2].monthlyPrice).to.equal(parseEther("10"));
 
     // Check yearly prices
-    expect(yearlyPrices[0]).to.equal(parseEther("20"));
-    expect(yearlyPrices[1]).to.equal(parseEther("50"));
-    expect(yearlyPrices[2]).to.equal(parseEther("100"));
+    expect(plans[0].yearlyPrice).to.equal(parseEther("20"));
+    expect(plans[1].yearlyPrice).to.equal(parseEther("50"));
+    expect(plans[2].yearlyPrice).to.equal(parseEther("100"));
 
     // Check active status
-    expect(activeStatus[0]).to.equal(true);
-    expect(activeStatus[1]).to.equal(true);
-    expect(activeStatus[2]).to.equal(true);
+    expect(plans[0].isActive).to.equal(true);
+    expect(plans[1].isActive).to.equal(true);
+    expect(plans[2].isActive).to.equal(true);
   });
 
   it("Should track total active subscribers correctly", async function () {
@@ -638,12 +604,6 @@ describe("LCAIChatSubscription", function () {
     await subscription
       .connect(user3)
       .subscribe(TIER_3, DURATION_MONTHLY, { value: parseEther("10") });
-    expect(await subscription.getTotalActiveSubscribers()).to.equal(3n);
-
-    // User 1 renews (should not increase count)
-    await subscription
-      .connect(user1)
-      .subscribe(TIER_1, DURATION_MONTHLY, { value: parseEther("2") });
     expect(await subscription.getTotalActiveSubscribers()).to.equal(3n);
   });
 
@@ -709,7 +669,7 @@ describe("LCAIChatSubscription", function () {
     expect(finalBalance - initialBalance).to.equal(expectedTotal);
   });
 
-  it("Should handle price updates mid-subscription", async function () {
+  it("Should handle price updates and new subscriptions", async function () {
     const { subscription } = await deploySubscriptionContract();
 
     // User subscribes at old price
@@ -723,17 +683,24 @@ describe("LCAIChatSubscription", function () {
       .connect(admin)
       .updatePlanPrice(TIER_1, newPrice, parseEther("205"), true);
 
-    // User renews at new price
+    // User 1 cannot renew while subscription is active
     await expect(
       subscription
         .connect(user1)
         .subscribe(TIER_1, DURATION_MONTHLY, { value: newPrice })
-    ).to.emit(subscription, "SubscriptionRenewed");
+    ).to.be.revertedWithCustomError(subscription, "HaveActiveSubscription");
 
-    // Old price should fail
+    // New user (user2) subscribes at new price
     await expect(
       subscription
         .connect(user2)
+        .subscribe(TIER_1, DURATION_MONTHLY, { value: newPrice })
+    ).to.emit(subscription, "SubscriptionPurchased");
+
+    // Old price should fail for new subscriptions
+    await expect(
+      subscription
+        .connect(user3)
         .subscribe(TIER_1, DURATION_MONTHLY, { value: parseEther("2") })
     ).to.be.revertedWithCustomError(subscription, "IncorrectPayment");
   });

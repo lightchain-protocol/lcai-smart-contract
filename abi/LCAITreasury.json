@@ -1,0 +1,661 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_timelock",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "_admin",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "AdminMustBeMultisig"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "BlacklistedAddressNotAllowed"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "EnforcedPause"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "ExpectedPause"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "InsufficientBalance"
+  },
+  {
+    "type": "error",
+    "inputs": [
+      {
+        "name": "owner",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "OwnableInvalidOwner"
+  },
+  {
+    "type": "error",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "OwnableUnauthorizedAccount"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "ReentrancyGuardReentrantCall"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "TransferFailed"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "Unauthorized"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "WhitelistedAddressNotAllowed"
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "previousAdmin",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "newAdmin",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "AdminUpdated",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "_address",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "_isBlacklisted",
+        "type": "bool",
+        "baseType": "bool",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "BlacklistedAddressUpdated",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "previousStatus",
+        "type": "bool",
+        "baseType": "bool",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "newStatus",
+        "type": "bool",
+        "baseType": "bool",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "BlacklistedStatusUpdated",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "baseType": "address",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "Paused",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "baseType": "address",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "Unpaused",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "_address",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "_isWhitelisted",
+        "type": "bool",
+        "baseType": "bool",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "WhitelistedAddressUpdated",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "previousStatus",
+        "type": "bool",
+        "baseType": "bool",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "newStatus",
+        "type": "bool",
+        "baseType": "bool",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "WhitelistedStatusUpdated",
+    "anonymous": false
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "admin",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "blacklistedAddresses",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "getBalance",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "isBlacklisted",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "isWhitelisted",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "owner",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "pause",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "paused",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "renounceOwnership",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "_address",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "_isBlacklisted",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "setBlacklistedAddress",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "_address",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "_isWhitelisted",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "setWhitelistedAddress",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "spent",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "_recipient",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "_amount",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "transfer",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "transferOwnership",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "unpause",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "_admin",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "updateAdmin",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "_isBlacklisted",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "updateBlacklistedStatus",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "_isWhitelisted",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "updateWhitelistedStatus",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "whitelistedAddresses",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "fallback",
+    "inputs": [],
+    "payable": true
+  }
+]

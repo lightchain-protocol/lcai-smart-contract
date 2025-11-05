@@ -1,0 +1,1387 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_treasury",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "_defaultAdmin",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "AccessControlBadConfirmation"
+  },
+  {
+    "type": "error",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "neededRole",
+        "type": "bytes32",
+        "baseType": "bytes32",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "AccessControlUnauthorizedAccount"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "EnforcedPause"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "ExpectedPause"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "HaveActiveSubscription"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "IncorrectPayment"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "InvalidAddress"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "InvalidDuration"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "InvalidPrice"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "InvalidTier"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "PlanNotActive"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "ReentrancyGuardReentrantCall"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "TransferFailed"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "TreasuryNotSet"
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "admin",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "AdminAdded",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "admin",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "AdminRemoved",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "baseType": "address",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "Paused",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "tier",
+        "type": "uint256",
+        "baseType": "uint256",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "monthlyPrice",
+        "type": "uint256",
+        "baseType": "uint256",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "yearlyPrice",
+        "type": "uint256",
+        "baseType": "uint256",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "isActive",
+        "type": "bool",
+        "baseType": "bool",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "PlanPriceUpdated",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "role",
+        "type": "bytes32",
+        "baseType": "bytes32",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "previousAdminRole",
+        "type": "bytes32",
+        "baseType": "bytes32",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "newAdminRole",
+        "type": "bytes32",
+        "baseType": "bytes32",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "RoleAdminChanged",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "role",
+        "type": "bytes32",
+        "baseType": "bytes32",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "sender",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "RoleGranted",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "role",
+        "type": "bytes32",
+        "baseType": "bytes32",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "sender",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "RoleRevoked",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "tier",
+        "type": "uint256",
+        "baseType": "uint256",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "expiredAt",
+        "type": "uint256",
+        "baseType": "uint256",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "SubscriptionExpired",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "tier",
+        "type": "uint256",
+        "baseType": "uint256",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "duration",
+        "type": "uint256",
+        "baseType": "uint256",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "price",
+        "type": "uint256",
+        "baseType": "uint256",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "expiryTimestamp",
+        "type": "uint256",
+        "baseType": "uint256",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "SubscriptionPurchased",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "tier",
+        "type": "uint256",
+        "baseType": "uint256",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "duration",
+        "type": "uint256",
+        "baseType": "uint256",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "price",
+        "type": "uint256",
+        "baseType": "uint256",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "newExpiryTimestamp",
+        "type": "uint256",
+        "baseType": "uint256",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "SubscriptionRenewed",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "oldTreasury",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "newTreasury",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "TreasuryUpdated",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "baseType": "address",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "Unpaused",
+    "anonymous": false
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "ADMIN_ROLE",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "baseType": "bytes32",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "DEFAULT_ADMIN_ROLE",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "baseType": "bytes32",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "DURATION_MONTHLY",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "DURATION_YEARLY",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "MAX_TIER",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "MONTHLY_DURATION",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "TIER_1",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "TIER_2",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "TIER_3",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "YEARLY_DURATION",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "newAdmin",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "addAdmin",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "getAllPlans",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "baseType": "array",
+        "components": null,
+        "arrayLength": -1,
+        "arrayChildren": {
+          "name": "",
+          "type": "tuple",
+          "baseType": "tuple",
+          "components": [
+            {
+              "name": "monthlyPrice",
+              "type": "uint256",
+              "baseType": "uint256",
+              "components": null,
+              "arrayLength": null,
+              "arrayChildren": null
+            },
+            {
+              "name": "yearlyPrice",
+              "type": "uint256",
+              "baseType": "uint256",
+              "components": null,
+              "arrayLength": null,
+              "arrayChildren": null
+            },
+            {
+              "name": "isActive",
+              "type": "bool",
+              "baseType": "bool",
+              "components": null,
+              "arrayLength": null,
+              "arrayChildren": null
+            }
+          ],
+          "arrayLength": null,
+          "arrayChildren": null
+        }
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "tier",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "getPlan",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "baseType": "tuple",
+        "components": [
+          {
+            "name": "monthlyPrice",
+            "type": "uint256",
+            "baseType": "uint256",
+            "components": null,
+            "arrayLength": null,
+            "arrayChildren": null
+          },
+          {
+            "name": "yearlyPrice",
+            "type": "uint256",
+            "baseType": "uint256",
+            "components": null,
+            "arrayLength": null,
+            "arrayChildren": null
+          },
+          {
+            "name": "isActive",
+            "type": "bool",
+            "baseType": "bool",
+            "components": null,
+            "arrayLength": null,
+            "arrayChildren": null
+          }
+        ],
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "getRemainingTime",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "role",
+        "type": "bytes32",
+        "baseType": "bytes32",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "getRoleAdmin",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "baseType": "bytes32",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "getSubscription",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "tier",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "expiryTimestamp",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "isExpired",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "getTotalActiveSubscribers",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "role",
+        "type": "bytes32",
+        "baseType": "bytes32",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "grantRole",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "hasActiveSubscription",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "role",
+        "type": "bytes32",
+        "baseType": "bytes32",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "hasRole",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "isAdmin",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "pause",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "paused",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "planPrices",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "monthlyPrice",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "yearlyPrice",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "isActive",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "admin",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "removeAdmin",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "role",
+        "type": "bytes32",
+        "baseType": "bytes32",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "callerConfirmation",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "renounceRole",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "role",
+        "type": "bytes32",
+        "baseType": "bytes32",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "revokeRole",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "tier",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "duration",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "subscribe",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "payable",
+    "payable": true,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "subscriptions",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "tier",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "expiryTimestamp",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "interfaceId",
+        "type": "bytes4",
+        "baseType": "bytes4",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "supportsInterface",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "totalActiveSubscribers",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "treasury",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "unpause",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "tier",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "monthlyPrice",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "yearlyPrice",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "isActive",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "updatePlanPrice",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "newTreasury",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "updateTreasury",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "fallback",
+    "inputs": [],
+    "payable": true
+  }
+]

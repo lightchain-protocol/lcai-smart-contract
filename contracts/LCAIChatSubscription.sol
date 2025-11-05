@@ -47,7 +47,6 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
     struct Subscription {
         uint256 tier; // 0 = tier1, 1 = tier2, 2 = tier3
         uint256 expiryTimestamp; // When subscription expires
-        bool isActive; // Whether subscription is currently active
     }
 
     // ============================================================================
@@ -119,6 +118,7 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
     error TransferFailed();
     error InvalidAddress();
     error InvalidPrice();
+    error HaveActiveSubscription();
 
     // ============================================================================
     // CONSTRUCTOR
@@ -170,6 +170,7 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
      * @notice Subscribe to a plan
      * @param tier Subscription tier (0 = tier1, 1 = tier2, 2 = tier3)
      * @param duration Duration type (0 = monthly/30 days, 1 = yearly/365 days)
+     * @dev Can only subscribe if no active subscription exists
      */
     function subscribe(
         uint256 tier,
@@ -178,6 +179,13 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
         if (tier > MAX_TIER) revert InvalidTier();
         if (duration > DURATION_YEARLY) revert InvalidDuration();
         if (treasury == address(0)) revert TreasuryNotSet();
+
+        Subscription storage sub = subscriptions[msg.sender];
+
+        // Check if user has an active subscription
+        if (sub.expiryTimestamp > block.timestamp) {
+            revert HaveActiveSubscription();
+        }
 
         PlanPrice storage plan = planPrices[tier];
         if (!plan.isActive) revert PlanNotActive();
@@ -192,48 +200,29 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
         uint256 durationSeconds = duration == DURATION_MONTHLY
             ? MONTHLY_DURATION
             : YEARLY_DURATION;
-        uint256 newExpiry;
 
-        Subscription storage sub = subscriptions[msg.sender];
-
-        // If user has an active subscription of the same tier, extend it
-        // Otherwise, start fresh from now
-        if (
-            sub.isActive &&
-            sub.expiryTimestamp > block.timestamp &&
-            sub.tier == tier
-        ) {
-            newExpiry = sub.expiryTimestamp + durationSeconds;
-            emit SubscriptionRenewed(
-                msg.sender,
-                tier,
-                duration,
-                price,
-                newExpiry
-            );
-        } else {
-            // New subscription or switching tiers
-            if (!sub.isActive || sub.expiryTimestamp <= block.timestamp) {
-                totalActiveSubscribers++;
-            }
-            newExpiry = block.timestamp + durationSeconds;
-            emit SubscriptionPurchased(
-                msg.sender,
-                tier,
-                duration,
-                price,
-                newExpiry
-            );
+        // Increment subscriber count if this is first subscription or was previously expired
+        if (sub.expiryTimestamp <= block.timestamp) {
+            totalActiveSubscribers++;
         }
+
+        uint256 expiryTimestamp = block.timestamp + durationSeconds;
 
         // Update subscription
         sub.tier = tier;
-        sub.expiryTimestamp = newExpiry;
-        sub.isActive = true;
+        sub.expiryTimestamp = expiryTimestamp;
 
         // Send payment to treasury
         (bool success, ) = treasury.call{value: msg.value}("");
         if (!success) revert TransferFailed();
+
+        emit SubscriptionPurchased(
+            msg.sender,
+            tier,
+            duration,
+            price,
+            expiryTimestamp
+        );
     }
 
     /**
@@ -243,7 +232,7 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
      */
     function hasActiveSubscription(address user) external view returns (bool) {
         Subscription storage sub = subscriptions[user];
-        return sub.isActive && sub.expiryTimestamp > block.timestamp;
+        return sub.expiryTimestamp > block.timestamp;
     }
 
     /**
@@ -251,7 +240,6 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
      * @param user User address
      * @return tier Subscription tier
      * @return expiryTimestamp Expiry timestamp
-     * @return isActive Whether subscription is active
      * @return isExpired Whether subscription has expired
      */
     function getSubscription(
@@ -259,21 +247,11 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
     )
         external
         view
-        returns (
-            uint256 tier,
-            uint256 expiryTimestamp,
-            bool isActive,
-            bool isExpired
-        )
+        returns (uint256 tier, uint256 expiryTimestamp, bool isExpired)
     {
         Subscription storage sub = subscriptions[user];
         bool expired = sub.expiryTimestamp <= block.timestamp;
-        return (
-            sub.tier,
-            sub.expiryTimestamp,
-            sub.isActive && !expired,
-            expired
-        );
+        return (sub.tier, sub.expiryTimestamp, expired);
     }
 
     /**
@@ -283,7 +261,7 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
      */
     function getRemainingTime(address user) external view returns (uint256) {
         Subscription storage sub = subscriptions[user];
-        if (!sub.isActive || sub.expiryTimestamp <= block.timestamp) {
+        if (sub.expiryTimestamp <= block.timestamp) {
             return 0;
         }
         return sub.expiryTimestamp - block.timestamp;
@@ -373,52 +351,25 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
     /**
      * @notice Get plan details for a specific tier
      * @param tier Tier to query
-     * @return monthlyPrice Monthly price in LCAI
-     * @return yearlyPrice Yearly price in LCAI
-     * @return isActive Whether tier is active
+     * @return PlanPrice structure containing monthlyPrice, yearlyPrice, and isActive
      */
-    function getPlan(
-        uint256 tier
-    )
-        external
-        view
-        returns (uint256 monthlyPrice, uint256 yearlyPrice, bool isActive)
-    {
+    function getPlan(uint256 tier) external view returns (PlanPrice memory) {
         if (tier > MAX_TIER) revert InvalidTier();
-        PlanPrice storage plan = planPrices[tier];
-        return (plan.monthlyPrice, plan.yearlyPrice, plan.isActive);
+        return planPrices[tier];
     }
 
     /**
      * @notice Get all plan details
-     * @return tiers Array of tier indices [0, 1, 2]
-     * @return monthlyPrices Array of monthly prices for each tier
-     * @return yearlyPrices Array of yearly prices for each tier
-     * @return activeStatus Array of active status for each tier
+     * @return Array of PlanPrice structures
      */
-    function getAllPlans()
-        external
-        view
-        returns (
-            uint256[] memory tiers,
-            uint256[] memory monthlyPrices,
-            uint256[] memory yearlyPrices,
-            bool[] memory activeStatus
-        )
-    {
-        tiers = new uint256[](3);
-        monthlyPrices = new uint256[](3);
-        yearlyPrices = new uint256[](3);
-        activeStatus = new bool[](3);
+    function getAllPlans() external view returns (PlanPrice[] memory) {
+        PlanPrice[] memory plans = new PlanPrice[](3);
 
         for (uint256 i = 0; i <= MAX_TIER; i++) {
-            tiers[i] = i;
-            monthlyPrices[i] = planPrices[i].monthlyPrice;
-            yearlyPrices[i] = planPrices[i].yearlyPrice;
-            activeStatus[i] = planPrices[i].isActive;
+            plans[i] = planPrices[i];
         }
 
-        return (tiers, monthlyPrices, yearlyPrices, activeStatus);
+        return plans;
     }
 
     /**
