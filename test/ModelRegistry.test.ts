@@ -6,12 +6,12 @@ const { ethers, networkHelpers } = await network.connect();
 const [owner, trainer, validator1, validator2, validator3, challenger, treasury] =
   await ethers.getSigners();
 
-describe("ModelRegistry", function () {
+describe("AIVMModelRegistry", function () {
   const TRAINER_STAKE_MIN = parseEther("100");
   const VALIDATOR_STAKE_MIN = parseEther("50");
 
   async function deployModelRegistry() {
-    const modelRegistry = await ethers.deployContract("ModelRegistry", [
+    const modelRegistry = await ethers.deployContract("AIVMModelRegistry", [
       treasury.address,
     ]);
     return { modelRegistry };

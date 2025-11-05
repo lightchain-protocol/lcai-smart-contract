@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
- * @title ModelRegistry
+ * @title AIVMModelRegistry
  * @notice On-chain registry for AI model variants with validation and staking mechanics
  * @dev Implements the AIVM workflow: submission → validation → approval → finalization
  * 
@@ -20,7 +20,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * 8. Challenge window (24-72 hours)
  * 9. Finalization (variant available for chat/inference)
  */
-contract ModelRegistry is Ownable, ReentrancyGuard {
+contract AIVMModelRegistry is Ownable, ReentrancyGuard {
     
     // ============================================================================
     // ENUMS & STRUCTS
