@@ -8,6 +8,7 @@ import { saveAbi } from "../abi/saveAbi.js";
 
 // -------------------- Print Deployment Info To Console --------------------
 import {
+  printContractDeployed,
   printDeployingContract,
   printExplorerContractLink,
 } from "../logs/console/console_logger.js";
@@ -26,19 +27,62 @@ async function main() {
 
   const { ethers } = await network.connect();
   const [deployer] = await ethers.getSigners();
-
-  // Get addresses from environment
-  const timelockAddress = "0x6FDA6BFfdf8f6ea638D1AdED3d5Bdf337dec7DAc";
-  const adminAddress = deployer.address;
-
-  // Get network info
   const networkName = (network as any).name;
   const chainId = (await ethers.provider.getNetwork()).chainId;
-  console.log(`📡 Deploying to network: ${networkName} (chainId: ${chainId})`);
-
-  // Get explorer URL from Hardhat config
   const networkConfig = (hardhatConfig.networks as any)?.[networkName] || {};
   const explorerUrl = networkConfig.explorer?.url || "";
+
+  const timelockAddressEnv = process.env.TIMELOCK_ADDRESS?.trim();
+  const adminAddressEnv = process.env.ADMIN_ADDRESS?.trim();
+
+  if (!timelockAddressEnv) {
+    throw new Error(
+      "TIMELOCK_ADDRESS env var is required. Set it to the LCAITimeLock contract address."
+    );
+  }
+
+  let adminAddress = adminAddressEnv;
+  let mockAdminAddress: string | undefined;
+
+  if (!adminAddress || adminAddress === "") {
+    const shouldDeployMockAdmin = process.env.USE_MOCK_ADMIN === "true";
+    if (!shouldDeployMockAdmin) {
+      throw new Error(
+        "ADMIN_ADDRESS env var is required. Set USE_MOCK_ADMIN=true to deploy a MockAdmin automatically for local testing."
+      );
+    }
+
+    printDeployingContract("MockAdmin");
+    const mockAdminFactory = await ethers.getContractFactory("MockAdmin", deployer);
+    const mockAdmin = await mockAdminFactory.deploy(deployer.address);
+    await mockAdmin.waitForDeployment();
+    mockAdminAddress = await mockAdmin.getAddress();
+    adminAddress = mockAdminAddress;
+
+    printContractDeployed("MockAdmin", mockAdminAddress);
+    printExplorerContractLink("MockAdmin", mockAdminAddress, explorerUrl);
+
+    try {
+      saveAbi("MockAdmin", mockAdminFactory);
+    } catch (error: any) {
+      console.warn(`⚠️ Failed to save ABI for MockAdmin:`, error.message);
+    }
+  }
+
+  if (!adminAddress) {
+    throw new Error("Failed to resolve admin address");
+  }
+
+  const adminCode = await deployer.provider!.getCode(adminAddress);
+  if (adminCode === "0x") {
+    throw new Error(
+      `ADMIN_ADDRESS ${adminAddress} is not a contract. Provide a multisig or enable USE_MOCK_ADMIN.`
+    );
+  }
+
+  const timelockAddress = timelockAddressEnv;
+
+  console.log(`📡 Deploying to network: ${networkName} (chainId: ${chainId})`);
 
   console.log(`👤 Deployer: ${deployer.address}`);
   const balance = await ethers.provider.getBalance(deployer.address);

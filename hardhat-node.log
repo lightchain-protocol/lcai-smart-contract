@@ -1,0 +1,495 @@
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 🔄 add secrets lifecycle management: https://dotenvx.com/ops
+Started HTTP and WebSocket JSON-RPC server at http://127.0.0.1:8545/
+
+Accounts
+========
+
+WARNING: Funds sent on live network to accounts with publicly known private keys WILL BE LOST.
+
+Account #0:  0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266 (10000 ETH)
+Private Key: 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+Account #1:  0x70997970c51812dc3a010c7d01b50e0d17dc79c8 (10000 ETH)
+Private Key: 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+
+Account #2:  0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc (10000 ETH)
+Private Key: 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
+
+Account #3:  0x90f79bf6eb2c4f870365e785982e1f101e93b906 (10000 ETH)
+Private Key: 0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
+
+Account #4:  0x15d34aaf54267db7d7c367839aaf71a00a2c6a65 (10000 ETH)
+Private Key: 0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
+
+Account #5:  0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc (10000 ETH)
+Private Key: 0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+
+Account #6:  0x976ea74026e726554db657fa54763abd0c3a0aa9 (10000 ETH)
+Private Key: 0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e
+
+Account #7:  0x14dc79964da2c08b23698b3d3cc7ca32193d9955 (10000 ETH)
+Private Key: 0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356
+
+Account #8:  0x23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f (10000 ETH)
+Private Key: 0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
+
+Account #9:  0xa0ee7a142d267c1f36714e4a8f75612f20a79720 (10000 ETH)
+Private Key: 0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
+
+Account #10: 0xbcd4042de499d14e55001ccbb24a551f3b954096 (10000 ETH)
+Private Key: 0xf214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897
+
+Account #11: 0x71be63f3384f5fb98995898a86b02fb2426c5788 (10000 ETH)
+Private Key: 0x701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82
+
+Account #12: 0xfabb0ac9d68b0b445fb7357272ff202c5651694a (10000 ETH)
+Private Key: 0xa267530f49f8280200edf313ee7af6b827f2a8bce2897751d06a843f644967b1
+
+Account #13: 0x1cbd3b2770909d4e10f157cabc84c7264073c9ec (10000 ETH)
+Private Key: 0x47c99abed3324a2707c28affff1267e45918ec8c3f20b8aa892e8b065d2942dd
+
+Account #14: 0xdf3e18d64bc6a983f673ab319ccae4f1a57c7097 (10000 ETH)
+Private Key: 0xc526ee95bf44d8fc405a158bb884d9d1238d99f0612e9f33d006bb0789009aaa
+
+Account #15: 0xcd3b766ccdd6ae721141f452c550ca635964ce71 (10000 ETH)
+Private Key: 0x8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61
+
+Account #16: 0x2546bcd3c84621e976d8185a91a922ae77ecec30 (10000 ETH)
+Private Key: 0xea6c44ac03bff858b476bba40716402b03e41b8e97e276d1baec7c37d42484a0
+
+Account #17: 0xbda5747bfd65f08deb54cb465eb87d40e51b197e (10000 ETH)
+Private Key: 0x689af8efa8c651a91ad287602527f3af2fe9f6501a7ac4b061667b5a93e037fd
+
+Account #18: 0xdd2fd4581271e230360230f9337d5c0430bf44c0 (10000 ETH)
+Private Key: 0xde9be858da4a475276426320d5e9262ecfc3ba460bfac56360bfa6c4c28b4ee0
+
+Account #19: 0x8626f6940e2eb28930efb4cef49b2d1f2c9c1199 (10000 ETH)
+Private Key: 0xdf57089febbacf7ba0bc227dafbffa9fc08a93fdc68e1e42411a14efcf23656e
+
+WARNING: Funds sent on live network to accounts with publicly known private keys WILL BE LOST.
+
+[32meth_accounts[0m
+[32meth_getBalance[0m
+[32meth_chainId[0m
+[32meth_accounts[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_getBlockByNumber[0m
+[32meth_feeHistory[0m
+[32meth_maxPriorityFeePerGas[0m
+[32meth_sendTransaction[0m
+  Contract deployment: LCAITimeLock
+  Contract address:    0x5fbdb2315678afecb367f032d93f642f64180aa3
+  Transaction:         0x1703b3b0bdd9967680bd7b56daed4e1fec4318d38e47e486bdf727fbafa95949
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  Value:               0 ETH
+  Gas used:            1407539 of 1407539
+  Block #1:            0x23d30de02e609ecd1e632b1921a8e3145eb4632639a54ecbe4870741002e7a21
+
+[32meth_getTransactionByHash[0m
+[32meth_getTransactionReceipt[0m
+[32meth_accounts[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract deployment: PresaleVotingPower
+  Contract address:    0xe7f1725e7734ce288f8367e1bb143e90bb3f0512
+  Transaction:         0x6a06eadc0aa75e9c97cec65ae7f94b017d3f43524d1547cf47886885bb034493
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  Value:               0 ETH
+  Gas used:            567972 of 567972
+  Block #2:            0xf86f5a81a7942976f2e3ede787ff1d953e2034aeb009d5031823b0ffef957ca0
+
+[32meth_getTransactionByHash[0m
+[32meth_getTransactionReceipt[0m
+[32meth_accounts[0m
+[32meth_blockNumber[0m
+[31meth_estimateGas[0m
+  Contract deployment: LCAIGovernor
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  Value:               0 ETH
+
+  Error: VM Exception while processing transaction: reverted with an unrecognized custom error (return data: 0xb7c4ba99000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266)
+
+[32meth_accounts[0m
+[32meth_getBalance[0m
+[32meth_chainId[0m
+[32meth_accounts[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_getBlockByNumber[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract deployment: LCAITimeLock
+  Contract address:    0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0
+  Transaction:         0x4735862795a135972092c22570e7c5ee374ffab6f2f7cdb3610c2a155386241e
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  Value:               0 ETH
+  Gas used:            1407539 of 1407539
+  Block #3:            0x23f7b287024f4c2652847096b63532395c8be2db3c70ccea7464b111d26b5a49
+
+[32meth_getTransactionByHash[0m
+[32meth_getTransactionReceipt[0m
+[32meth_accounts[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract deployment: PresaleVotingPower
+  Contract address:    0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9
+  Transaction:         0x5a83206702e5fac903d05cb6ba74daa2b843f376671465c2610b40437c875cbd
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  Value:               0 ETH
+  Gas used:            567972 of 567972
+  Block #4:            0xa33c296535361649e7ec422d9b8ab8302478a3de5474a70bb907ee8a6089213b
+
+[32meth_getTransactionByHash[0m
+[32meth_getTransactionReceipt[0m
+[32meth_accounts[0m
+[32meth_getBalance[0m
+[32meth_chainId[0m
+[32meth_accounts[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_getBlockByNumber[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract deployment: LCAITimeLock
+  Contract address:    0xdc64a140aa3e981100a9beca4e685f962f0cf6c9
+  Transaction:         0x56d81396c1d788c366a4cd91d88b4a1106bd5974433915a9ffd57fed2614f16c
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  Value:               0 ETH
+  Gas used:            1407539 of 1407539
+  Block #5:            0x68907d0d34f121dad8800ada0b4dfb1afb002d3d0e67fbb95018607e27f07f84
+
+[32meth_getTransactionByHash[0m
+[32meth_getTransactionReceipt[0m
+[32meth_accounts[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract deployment: PresaleVotingPower
+  Contract address:    0x5fc8d32690cc91d4c39d9d3abcbd16989f875707
+  Transaction:         0x14dbf697855e7dda87e63afcda16803ef2919ba912d048fd103ec2271c0b0f48
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  Value:               0 ETH
+  Gas used:            567972 of 567972
+  Block #6:            0xfd14ed78b92259f60246d964a2f8c10d193d6170d50713017fcab25c40d3d9ce
+
+[32meth_getTransactionByHash[0m
+[32meth_getTransactionReceipt[0m
+[32meth_accounts[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract deployment: MockAdmin
+  Contract address:    0x0165878a594ca255338adfa4d48449f69242eb8f
+  Transaction:         0x2eb50d4fae1e0b594b0f661f86002463bc5339dd0f1540c3c0cd51900f015194
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  Value:               0 ETH
+  Gas used:            236347 of 236347
+  Block #7:            0xc1ed14d96d553244d597b5aab7a47cc5206b7eae40a5ea0555b77de9d9127007
+
+[32meth_getTransactionByHash[0m
+[32meth_getTransactionReceipt[0m
+[32meth_accounts[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract deployment: LCAIGovernor
+  Contract address:    0xa513e6e4b8f2a923d98304ec87f64353c4d5c853
+  Transaction:         0x26bbb371eebc09de8a2983e58ee71de03345f1489f858d01b23907619c7f3592
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  Value:               0 ETH
+  Gas used:            3870328 of 3870328
+  Block #8:            0x5cdc33e9489c1b4ef01a8a6b7eea02f1be8e1da661a41ea16e3049c36df6398b
+
+[32meth_getTransactionByHash[0m
+[32meth_getTransactionReceipt[0m
+[32meth_call[0m
+  Contract call:       LCAITimeLock#PROPOSER_ROLE
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xdc64a140aa3e981100a9beca4e685f962f0cf6c9
+
+[32meth_call[0m
+  Contract call:       LCAITimeLock#EXECUTOR_ROLE
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xdc64a140aa3e981100a9beca4e685f962f0cf6c9
+
+[32meth_call[0m
+  Contract call:       LCAITimeLock#CANCELLER_ROLE
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xdc64a140aa3e981100a9beca4e685f962f0cf6c9
+
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract call:       LCAITimeLock#grantRole
+  Transaction:         0x8e00cd7fd76998796434c3b94074bb0e9cb1e596d0546fbc846c279ba4b9c903
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xdc64a140aa3e981100a9beca4e685f962f0cf6c9
+  Value:               0 ETH
+  Gas used:            51279 of 51279
+  Block #9:            0x822d34e51cfc85105653e94cce2a33e32eedfa4717602cf372429cb322b426d8
+
+[32meth_getTransactionByHash[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract call:       LCAITimeLock#grantRole
+  Transaction:         0x255c8abacfd2954ea0527acda46b685158107355ce51c40fb0ed8aab13481087
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xdc64a140aa3e981100a9beca4e685f962f0cf6c9
+  Value:               0 ETH
+  Gas used:            51279 of 51279
+  Block #10:           0x8bf2d681a5a30e3fa255612925a916c2471589bac4fc0ccd1d3d3505410021d7
+
+[32meth_getTransactionByHash[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract call:       LCAITimeLock#grantRole
+  Transaction:         0xcf167dc807f998e60c97d5d9368ca587ef68d2e72f53b0eb628fa3bc77346ecc
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xdc64a140aa3e981100a9beca4e685f962f0cf6c9
+  Value:               0 ETH
+  Gas used:            51279 of 51279
+  Block #11:           0x56c27ec0c9329d5d622f429a11203c838bebb22bda1a611b519039afb32e5772
+
+[32meth_getTransactionByHash[0m
+[32meth_accounts[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract deployment: Counter
+  Contract address:    0xb7f8bc63bbcad18155201308c8f3540b07f84f5e
+  Transaction:         0xc60831a8f6f547f5b46c64bb40bbf0fb31b9b09a7749223730dd3fa4ecd138db
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  Value:               0 ETH
+  Gas used:            217884 of 217884
+  Block #12:           0x89e1fb7f1c2b3ff65801319a577829da1f6ca67f6e76fdd954dbce5d6a8d2ad6
+
+[32meth_getTransactionByHash[0m
+[32meth_getTransactionReceipt[0m
+[32meth_accounts[0m
+[32meth_getBalance[0m
+[32meth_chainId[0m
+[32meth_accounts[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_getBlockByNumber[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract deployment: LCAITimeLock
+  Contract address:    0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0
+  Transaction:         0x40173f1a721d6f751a70edf3de2d1038c9406f06c3d87c948ce7e37413059984
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  Value:               0 ETH
+  Gas used:            1407539 of 1407539
+  Block #13:           0x0ac56e49a6030e1a0eb6e16c1de38d9f2a0e16644fdc61da36fea121663837f4
+
+[32meth_getTransactionByHash[0m
+[32meth_getTransactionReceipt[0m
+[32meth_accounts[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract deployment: PresaleVotingPower
+  Contract address:    0x0dcd1bf9a1b36ce34237eeafef220932846bcd82
+  Transaction:         0x48b8f1c2b16056deb9ea169fb18b97de30e09f340f76d8fc4ab03fad026836b1
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  Value:               0 ETH
+  Gas used:            567972 of 567972
+  Block #14:           0x856202ed657bf963dd30458e3405c3a7e75f24aac09953e6e8aa2ff33ab6508b
+
+[32meth_getTransactionByHash[0m
+[32meth_getTransactionReceipt[0m
+[32meth_accounts[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract deployment: MockAdmin
+  Contract address:    0x9a676e781a523b5d0c0e43731313a708cb607508
+  Transaction:         0xe3ae7ae0de2b82b6b5c89b40caee8678e2fb8f5f28868207bfceb55455651034
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  Value:               0 ETH
+  Gas used:            236347 of 236347
+  Block #15:           0x86f3ae96535d1c627683f4a4343a9379b6b25e5eebadcb52ca78de74ac54a167
+
+[32meth_getTransactionByHash[0m
+[32meth_getTransactionReceipt[0m
+[32meth_accounts[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract deployment: LCAIGovernor
+  Contract address:    0x0b306bf915c4d645ff596e518faf3f9669b97016
+  Transaction:         0x9b69e74d70d7dd144396efb35509f9b0ea85520c9b559546f5cdbd8c78443af1
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  Value:               0 ETH
+  Gas used:            3870340 of 3870340
+  Block #16:           0xbff6f7e7f81aca35c9006bdb02ae61ecef3143e12bd5a02510fa7f9021ae184e
+
+[32meth_getTransactionByHash[0m
+[32meth_getTransactionReceipt[0m
+[32meth_call[0m
+  Contract call:       LCAITimeLock#PROPOSER_ROLE
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0
+
+[32meth_call[0m
+  Contract call:       LCAITimeLock#EXECUTOR_ROLE
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0
+
+[32meth_call[0m
+  Contract call:       LCAITimeLock#CANCELLER_ROLE
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0
+
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract call:       LCAITimeLock#grantRole
+  Transaction:         0x62d584d75e2c3ad40c75561727cdf7cab13255ba002032face43dfa40c204ced
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0
+  Value:               0 ETH
+  Gas used:            51279 of 51279
+  Block #17:           0x39fdf3e18b36be64eb8bdd30357b2fd9d6387c7c526b6bfaa4eb6aa33bdcacb3
+
+[32meth_getTransactionByHash[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract call:       LCAITimeLock#grantRole
+  Transaction:         0xad9d20bd5d6a877beb9746a3091b816a1dfb2d3a5b0c61728529dac64907b1c0
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0
+  Value:               0 ETH
+  Gas used:            51279 of 51279
+  Block #18:           0xd5dc21c3dd264db84804e43e97d3c945504656c06186cbf8c115d0ba5c7f114b
+
+[32meth_getTransactionByHash[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract call:       LCAITimeLock#grantRole
+  Transaction:         0x7538046e8c903f59116100bc303d34f9b2c85cf5a1427648368811f23fbd80ad
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0
+  Value:               0 ETH
+  Gas used:            51279 of 51279
+  Block #19:           0x28140589d6cfdfe36aead673bed038d513dc04dd3b6db9f78e297c6985eb6136
+
+[32meth_getTransactionByHash[0m
+[32meth_accounts[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract deployment: Counter
+  Contract address:    0x3aa5ebb10dc797cac828524e59a333d0a371443c
+  Transaction:         0x09b22549fb95dd28f7d671ca4b71ff23b93dbe555ae5bd34285d630dcde16e29
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  Value:               0 ETH
+  Gas used:            217896 of 217896
+  Block #20:           0x87bfde1360e702a8ef28b211d1a13fa910dcafb3470681d303b6f94d688efbd4
+
+[32meth_getTransactionByHash[0m
+[32meth_getTransactionReceipt[0m
+[32meth_accounts[0m
+[32meth_chainId[0m
+[32meth_getCode[0m
+[32meth_getBalance[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_getBlockByNumber[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract deployment: LCAITreasury
+  Contract address:    0xc6e7df5e7b4f2a278906862b61205850344d4e7d
+  Transaction:         0xf505efe51ea0b01c9648985b5140b4474266477220e7e44ca13b6f427789953e
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  Value:               0 ETH
+  Gas used:            721595 of 721595
+  Block #21:           0x83161893b7823a537f216495596da874abdbc87eb213c80cbd308f3dbe55a1b3
+
+[32meth_getTransactionByHash[0m
+[32meth_getTransactionReceipt[0m
+[32meth_getCode[0m
+[32meth_call[0m
+  Contract call:       LCAITreasury#owner
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xc6e7df5e7b4f2a278906862b61205850344d4e7d
+
+[32meth_call[0m
+  Contract call:       LCAITreasury#admin
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xc6e7df5e7b4f2a278906862b61205850344d4e7d
+
+[32meth_call[0m
+  Contract call:       LCAITreasury#spent
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xc6e7df5e7b4f2a278906862b61205850344d4e7d
+
+[32meth_call[0m
+  Contract call:       LCAITreasury#isWhitelisted
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xc6e7df5e7b4f2a278906862b61205850344d4e7d
+
+[32meth_call[0m
+  Contract call:       LCAITreasury#isBlacklisted
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xc6e7df5e7b4f2a278906862b61205850344d4e7d
+
+[32meth_call[0m
+  Contract call:       LCAITreasury#paused
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0xc6e7df5e7b4f2a278906862b61205850344d4e7d
+
+[32meth_accounts[0m
+[32meth_chainId[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_getBlockByNumber[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract deployment: LCAIChatUtility
+  Contract address:    0x59b670e9fa9d0a427751af201d676719a970857b
+  Transaction:         0xf75d4da4793e4de2fe0c1308594f76d4e2b60f4582a88b11cd28a4ec02cb863e
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  Value:               0 ETH
+  Gas used:            3376795 of 3376795
+  Block #22:           0xb6fc11e19fc09f808c2fdd7fca573159309f45f4ab85c863b0f22175994bee24
+
+[32meth_getTransactionByHash[0m
+[32meth_getTransactionReceipt[0m
+[32meth_blockNumber[0m
+[32meth_estimateGas[0m
+[32meth_feeHistory[0m
+[32meth_sendTransaction[0m
+  Contract call:       LCAIChatUtility#transferOwnership
+  Transaction:         0x9fd9eabcd8348b8093048604aabd37e19151bcc089b6d9f7e863f823b3db6e97
+  From:                0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
+  To:                  0x59b670e9fa9d0a427751af201d676719a970857b
+  Value:               0 ETH
+  Gas used:            29826 of 29826
+  Block #23:           0x1848c075195087fac3a8628f4177ac823662e80da6a7819b70a5ce656d6c4bbc
+
+[32meth_getTransactionByHash[0m
+[32meth_getTransactionReceipt[0m
