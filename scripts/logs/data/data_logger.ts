@@ -7,6 +7,9 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const jsonSerializer = (key: string, value: any) =>
+    typeof value === 'bigint' ? value.toString() : value;
+
 /**
  * Appends an IPFS hash URL to the ipfs_hashes.json file.
  * @param newHash - The IPFS CID hash to append.
@@ -54,7 +57,7 @@ export function appendLog(filePath: string, entry: any): void {
         }
     }
     logs.push(entry);
-    fs.writeFileSync(absPath, JSON.stringify(logs, null, 2));
+    fs.writeFileSync(absPath, JSON.stringify(logs, jsonSerializer, 2));
 }
 
 /**
@@ -115,7 +118,7 @@ export function logDeploymentsHistory(deploymentSet: any): void {
 
     // Append new deployment to existing history
     allDeployments.push(fullDeploymentData);
-    fs.writeFileSync(filePath, JSON.stringify(allDeployments, null, 2));
+    fs.writeFileSync(filePath, JSON.stringify(allDeployments, jsonSerializer, 2));
     console.log("Logged deployment set to deploymentsHistory.json in the backend");
 
     // log it again in the lib/data directory within lcai-dao-smart-contract
@@ -125,7 +128,7 @@ export function logDeploymentsHistory(deploymentSet: any): void {
     if (!fs.existsSync(libDataDir)) {
         fs.mkdirSync(libDataDir, { recursive: true });
     }
-    fs.writeFileSync(libDataPath, JSON.stringify(allDeployments, null, 2));
+    fs.writeFileSync(libDataPath, JSON.stringify(allDeployments, jsonSerializer, 2));
     console.log("Logged deployment set to contractsData.json in lib/data");
 
     // Also save to frontend lcai-chat directory
@@ -135,7 +138,7 @@ export function logDeploymentsHistory(deploymentSet: any): void {
     if (!fs.existsSync(frontendDataDir)) {
         fs.mkdirSync(frontendDataDir, { recursive: true });
     }
-    fs.writeFileSync(frontendDataPath, JSON.stringify(allDeployments, null, 2));
+    fs.writeFileSync(frontendDataPath, JSON.stringify(allDeployments, jsonSerializer, 2));
     console.log("Logged deployment set to frontend lcai-chat/lib/data/deploymentsHistory.json");
 
     console.log(`Logged deployment set to ${filePath}, ${libDataPath}, and ${frontendDataPath}`);

@@ -78,13 +78,50 @@ async function main() {
   };
 
   // ============================================================
+  // Resolve Admin Address (must be a contract)
+  // ============================================================
+  let adminAddress: string | undefined = process.env.ADMIN_CONTRACT_ADDRESS?.trim();
+  let mockAdminAddress: string | undefined;
+
+  if (adminAddress && adminAddress !== "") {
+    const code = await ethers.provider.getCode(adminAddress);
+    if (code === "0x") {
+      throw new Error(`ADMIN_CONTRACT_ADDRESS ${adminAddress} is not a contract. Please provide a contract address (e.g., Gnosis Safe, MockAdmin).`);
+    }
+  } else {
+    const shouldDeployMockAdmin =
+      process.env.USE_MOCK_ADMIN === "true" ||
+      networkName === "localhost" ||
+      networkName === "hardhat";
+
+    if (!shouldDeployMockAdmin) {
+      throw new Error(
+        "No ADMIN_CONTRACT_ADDRESS provided. Set USE_MOCK_ADMIN=true to deploy a MockAdmin for local testing or provide a contract address via ADMIN_CONTRACT_ADDRESS."
+      );
+    }
+
+    printDeployingContract("MockAdmin");
+    const mockAdminFactory = await ethers.getContractFactory("MockAdmin");
+    const mockAdmin = await mockAdminFactory.deploy(deployer.address);
+    await mockAdmin.waitForDeployment();
+    mockAdminAddress = await mockAdmin.getAddress();
+    adminAddress = mockAdminAddress;
+
+    printContractDeployed("MockAdmin", mockAdminAddress);
+    printExplorerContractLink("MockAdmin", mockAdminAddress, explorerUrl);
+    saveAbi("MockAdmin", mockAdminFactory);
+
+    deploymentData.contracts.MockAdmin = {
+      address: mockAdminAddress,
+      constructorArgs: [deployer.address]
+    };
+  }
+
+  // ============================================================
   // Deploy LCAIGovernor
   // ============================================================
   printDeployingContract("LCAIGovernor");
-  
-  // NOTE: For production, replace with Gnosis Safe address
-  const adminAddress = deployer.address;
-  
+
   const governorFactory = await ethers.getContractFactory("LCAIGovernor");
   const governor = await governorFactory.deploy(presaleAddress, timelockAddress, adminAddress);
   await governor.waitForDeployment();

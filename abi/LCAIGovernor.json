@@ -17,6 +17,14 @@
         "components": null,
         "arrayLength": null,
         "arrayChildren": null
+      },
+      {
+        "name": "_admin",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
       }
     ],
     "payable": false,
@@ -24,8 +32,32 @@
   },
   {
     "type": "error",
+    "inputs": [
+      {
+        "name": "provided",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "AdminMustBeContract"
+  },
+  {
+    "type": "error",
     "inputs": [],
     "name": "CheckpointUnorderedInsertion"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "EnforcedPause"
+  },
+  {
+    "type": "error",
+    "inputs": [],
+    "name": "ExpectedPause"
   },
   {
     "type": "error",
@@ -322,6 +354,20 @@
   },
   {
     "type": "error",
+    "inputs": [
+      {
+        "name": "provided",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "InvalidAdminAddress"
+  },
+  {
+    "type": "error",
     "inputs": [],
     "name": "InvalidShortString"
   },
@@ -362,9 +408,89 @@
     "name": "StringTooLong"
   },
   {
+    "type": "error",
+    "inputs": [
+      {
+        "name": "caller",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "UnauthorizedAdmin"
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "previousAdmin",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "newAdmin",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "AdminUpdated",
+    "anonymous": false
+  },
+  {
     "type": "event",
     "inputs": [],
     "name": "EIP712DomainChanged",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "proposalId",
+        "type": "uint256",
+        "baseType": "uint256",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      },
+      {
+        "name": "admin",
+        "type": "address",
+        "baseType": "address",
+        "indexed": true,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "EmergencyCancellation",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "baseType": "address",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "Paused",
     "anonymous": false
   },
   {
@@ -594,6 +720,22 @@
     "type": "event",
     "inputs": [
       {
+        "name": "account",
+        "type": "address",
+        "baseType": "address",
+        "indexed": false,
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "Unpaused",
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "inputs": [
+      {
         "name": "voter",
         "type": "address",
         "baseType": "address",
@@ -770,6 +912,25 @@
         "name": "",
         "type": "bytes32",
         "baseType": "bytes32",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "admin",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "baseType": "address",
         "components": null,
         "arrayLength": null,
         "arrayChildren": null
@@ -1194,6 +1355,79 @@
       }
     ],
     "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "targets",
+        "type": "address[]",
+        "baseType": "array",
+        "components": null,
+        "arrayLength": -1,
+        "arrayChildren": {
+          "name": "",
+          "type": "address",
+          "baseType": "address",
+          "components": null,
+          "arrayLength": null,
+          "arrayChildren": null
+        }
+      },
+      {
+        "name": "values",
+        "type": "uint256[]",
+        "baseType": "array",
+        "components": null,
+        "arrayLength": -1,
+        "arrayChildren": {
+          "name": "",
+          "type": "uint256",
+          "baseType": "uint256",
+          "components": null,
+          "arrayLength": null,
+          "arrayChildren": null
+        }
+      },
+      {
+        "name": "calldatas",
+        "type": "bytes[]",
+        "baseType": "array",
+        "components": null,
+        "arrayLength": -1,
+        "arrayChildren": {
+          "name": "",
+          "type": "bytes",
+          "baseType": "bytes",
+          "components": null,
+          "arrayLength": null,
+          "arrayChildren": null
+        }
+      },
+      {
+        "name": "descriptionHash",
+        "type": "bytes32",
+        "baseType": "bytes32",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "emergencyCancel",
+    "constant": false,
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "baseType": "uint256",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "nonpayable",
     "payable": false,
     "gas": null
   },
@@ -1767,6 +2001,35 @@
   },
   {
     "type": "function",
+    "inputs": [],
+    "name": "pause",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "paused",
+    "constant": true,
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "baseType": "bool",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
     "inputs": [
       {
         "name": "proposalId",
@@ -2334,6 +2597,35 @@
       }
     ],
     "stateMutability": "view",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [],
+    "name": "unpause",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "payable": false,
+    "gas": null
+  },
+  {
+    "type": "function",
+    "inputs": [
+      {
+        "name": "newAdmin",
+        "type": "address",
+        "baseType": "address",
+        "components": null,
+        "arrayLength": null,
+        "arrayChildren": null
+      }
+    ],
+    "name": "updateAdmin",
+    "constant": false,
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "payable": false,
     "gas": null
   },
