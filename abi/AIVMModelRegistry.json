@@ -1,0 +1,1239 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address payable",
+        "name": "_treasury",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableInvalidOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableUnauthorizedAccount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReentrancyGuardReentrantCall",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "string",
+        "name": "modelId",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "baseModelCID",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "metadataHash",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "benchmarkCID",
+        "type": "string"
+      }
+    ],
+    "name": "BaseModelRegistered",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "challenger",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "challengeStake",
+        "type": "uint256"
+      }
+    ],
+    "name": "ChallengeOpened",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "challengeValid",
+        "type": "bool"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "challenger",
+        "type": "address"
+      }
+    ],
+    "name": "ChallengeResolved",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "minScore",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "minValidators",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "trainerStakeMin",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "validatorStakeMin",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "challengeWindowHours",
+        "type": "uint256"
+      }
+    ],
+    "name": "PolicyUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "StakeWithdrawn",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "variantCID",
+        "type": "string"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "trainer",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "trainerStake",
+        "type": "uint256"
+      }
+    ],
+    "name": "ValidationRequested",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "avgScore",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "passed",
+        "type": "bool"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "validatorCount",
+        "type": "uint256"
+      }
+    ],
+    "name": "ValidationResult",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "validator",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "reason",
+        "type": "string"
+      }
+    ],
+    "name": "ValidatorSlashed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "validator",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "ValidatorStaked",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "avgScore",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "challengeDeadline",
+        "type": "uint256"
+      }
+    ],
+    "name": "VariantApproved",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "finalizedAt",
+        "type": "uint256"
+      }
+    ],
+    "name": "VariantFinalized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "avgScore",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "reason",
+        "type": "string"
+      }
+    ],
+    "name": "VariantRejected",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "baseModelIds",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "name": "baseModels",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "modelId",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "baseModelCID",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "metadataHash",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "policyVersion",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "benchmarkCID",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "createdAt",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "isActive",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      }
+    ],
+    "name": "deprecateVariant",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "emergencyWithdraw",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      }
+    ],
+    "name": "finalizeVariant",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getAllVariants",
+    "outputs": [
+      {
+        "internalType": "string[]",
+        "name": "",
+        "type": "string[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "modelId",
+        "type": "string"
+      }
+    ],
+    "name": "getBaseModel",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "modelId",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "baseModelCID",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "metadataHash",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "policyVersion",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "benchmarkCID",
+            "type": "string"
+          },
+          {
+            "internalType": "uint256",
+            "name": "createdAt",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "isActive",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct AIVMModelRegistry.BaseModel",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getBaseModelIds",
+    "outputs": [
+      {
+        "internalType": "string[]",
+        "name": "",
+        "type": "string[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "trainer",
+        "type": "address"
+      }
+    ],
+    "name": "getTrainerVariants",
+    "outputs": [
+      {
+        "internalType": "string[]",
+        "name": "",
+        "type": "string[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      }
+    ],
+    "name": "getVariant",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "variantId",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "variantCID",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "metadataHash",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "parentModelId",
+            "type": "string"
+          },
+          {
+            "internalType": "address",
+            "name": "trainer",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "trainerStake",
+            "type": "uint256"
+          },
+          {
+            "internalType": "enum AIVMModelRegistry.ModelStatus",
+            "name": "status",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint256",
+            "name": "avgScore",
+            "type": "uint256"
+          },
+          {
+            "internalType": "string",
+            "name": "reportCID",
+            "type": "string"
+          },
+          {
+            "internalType": "uint256",
+            "name": "submittedAt",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "validatedAt",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "finalizedAt",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "validatorCount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "challengeWindowOpen",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "challengeDeadline",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct AIVMModelRegistry.ModelVariant",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      }
+    ],
+    "name": "getVariantValidators",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "validator",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "stakedAt",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "hasSubmitted",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "isSlashed",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct AIVMModelRegistry.ValidatorStake[]",
+        "name": "",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      }
+    ],
+    "name": "isVariantAvailable",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "reason",
+        "type": "string"
+      }
+    ],
+    "name": "openChallenge",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "policy",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "minScore",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minValidators",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "trainerStakeMin",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "validatorStakeMin",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "challengeWindowHours",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "modelId",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "baseModelCID",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "metadataHash",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "policyVersion",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "benchmarkCID",
+        "type": "string"
+      }
+    ],
+    "name": "registerBaseModel",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "variantCID",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "metadataHash",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "parentModelId",
+        "type": "string"
+      }
+    ],
+    "name": "registerVariant",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      },
+      {
+        "internalType": "address",
+        "name": "challenger",
+        "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "challengeValid",
+        "type": "bool"
+      }
+    ],
+    "name": "resolveChallenge",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address payable",
+        "name": "_treasury",
+        "type": "address"
+      }
+    ],
+    "name": "setTreasury",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "slashedAmounts",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      }
+    ],
+    "name": "stakeForValidation",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "stakedBalances",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "avgScore",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "reportCID",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "validatorCount",
+        "type": "uint256"
+      }
+    ],
+    "name": "submitValidationResult",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "trainerVariants",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "treasury",
+    "outputs": [
+      {
+        "internalType": "address payable",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "minScore",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minValidators",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "trainerStakeMin",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "validatorStakeMin",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "challengeWindowHours",
+        "type": "uint256"
+      }
+    ],
+    "name": "updatePolicy",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "variantIds",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "variantValidators",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "validator",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "stakedAt",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "hasSubmitted",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "isSlashed",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "name": "variants",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "variantId",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "variantCID",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "metadataHash",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "parentModelId",
+        "type": "string"
+      },
+      {
+        "internalType": "address",
+        "name": "trainer",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "trainerStake",
+        "type": "uint256"
+      },
+      {
+        "internalType": "enum AIVMModelRegistry.ModelStatus",
+        "name": "status",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "avgScore",
+        "type": "uint256"
+      },
+      {
+        "internalType": "string",
+        "name": "reportCID",
+        "type": "string"
+      },
+      {
+        "internalType": "uint256",
+        "name": "submittedAt",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "validatedAt",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "finalizedAt",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "validatorCount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "challengeWindowOpen",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "challengeDeadline",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "withdrawStake",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "stateMutability": "payable",
+    "type": "receive"
+  }
+]
