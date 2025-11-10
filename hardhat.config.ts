@@ -19,6 +19,7 @@ const config: HardhatUserConfig = {
             enabled: true,
             runs: 2000,
           },
+          viaIR: true,
         },
       },
       production: {
