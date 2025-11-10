@@ -3,12 +3,13 @@ import type { HardhatUserConfig } from "hardhat/config";
 
 import hardhatToolboxMochaEthersPlugin from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
 import dotenv from "dotenv";
+import hardhatVerify from "@nomicfoundation/hardhat-verify";
 
 // Load environment variables
 dotenv.config();
 
 const config: HardhatUserConfig = {
-  plugins: [hardhatToolboxMochaEthersPlugin],
+  plugins: [hardhatToolboxMochaEthersPlugin, hardhatVerify],
   solidity: {
     profiles: {
       default: {
@@ -61,7 +62,7 @@ const config: HardhatUserConfig = {
         name: "Lightchain Testnet Explorer",
         url: "https://testnet.lightscan.app",
       },
-      accounts: process.env.OWNER_WALLET_PRIVATE_KEY 
+      accounts: process.env.OWNER_WALLET_PRIVATE_KEY
         ? [process.env.OWNER_WALLET_PRIVATE_KEY]
         : [],
     },
@@ -93,6 +94,22 @@ const config: HardhatUserConfig = {
         ? [process.env.MAINNET_PRIVATE_KEY]
         : [],
     },
+  },
+  chainDescriptors: {
+    504: {
+      name: "Lightchain Testnet",
+      blockExplorers: {
+        blockscout: {
+          name: "Lightchain Testnet Explorer",
+          url: "https://testnet.lightscan.app:443",
+          apiUrl: "https://testnet.lightscan.app/api",
+        },
+      },
+    },
+  },
+  verify: {
+    blockscout: { enabled: true },
+    etherscan: { enabled: false },
   },
 };
 
