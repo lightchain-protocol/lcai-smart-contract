@@ -281,6 +281,43 @@ make deploy-dao NETWORK=lcaiTestnet
 make deploy-chat-utility NETWORK=lcaiTestnet
 ```
 
+#### Lightchain Testnet v2 Deployment
+
+1. **Update `.env`** with the new RPC and explorer configuration:
+
+```bash
+LCAI_TESTNET_V2_RPC_URL=http://localhost:8545        # or your remote RPC
+LCAI_TESTNET_V2_CHAIN_ID=504                         # override if genesis uses a different ID
+LCAI_BLOCKSCOUT_BROWSER_URL=http://localhost:4000    # Blockscout base URL
+LCAI_BLOCKSCOUT_API_URL=http://localhost:4000/api    # Blockscout API endpoint
+```
+
+2. **Run the repeatable deployment:**
+
+```bash
+pnpm install
+pnpm deploy:testnet
+
+# Optional follow-ups
+pnpm deploy:testnet:treasury
+pnpm deploy:testnet:chat-subscription
+```
+
+The scripts automatically:
+
+- Save deployment history in `data/deployments/`
+- Sync addresses into `lcai-testnet-v2/genesis/genesis_v2.json`
+- Update execution addresses inside `lcai-testnet-v2/network/rpc/config/consensus.yaml`
+- Refresh address exports in your local `.env`
+
+3. **Verify on Blockscout (after the explorer is reachable):**
+
+```bash
+pnpm exec hardhat verify --network lcai_testnet_v2 <CONTRACT_ADDRESS> <CONSTRUCTOR_ARGS>
+```
+
+> 💡 The verification flow uses the configured `LCAI_BLOCKSCOUT_*` environment variables, so you can point at a local Blockscout instance or a hosted explorer.
+
 #### Sepolia Testnet Deployment
 
 1. **Add Sepolia credentials to `.env`:**

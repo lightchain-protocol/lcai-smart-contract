@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { promises as fsp } from 'fs';
 import { fileURLToPath } from 'url';
+import { syncDeploymentArtifacts } from '../../deployment/utils/updateDeploymentArtifacts.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -141,6 +142,17 @@ export function logDeploymentsHistory(deploymentSet: any): void {
     fs.writeFileSync(frontendDataPath, JSON.stringify(allDeployments, jsonSerializer, 2));
     console.log("Logged deployment set to frontend lcai-chat/lib/data/deploymentsHistory.json");
 
+    const syncNetworkName = (deploymentSet as any).networkName || (deploymentSet as any).network || "";
+    const addressesForSync = {
+        timelock: (fullDeploymentData.contracts as any)?.LCAITimeLock?.address,
+        governor: (fullDeploymentData.contracts as any)?.LCAIGovernor?.address,
+        treasury: (fullDeploymentData.contracts as any)?.LCAITreasury?.address,
+        chatUtility: (fullDeploymentData.contracts as any)?.LCAIChatUtility?.address,
+        chatSubscription: (fullDeploymentData.contracts as any)?.LCAIChatSubscription?.address,
+    };
+
+    syncDeploymentArtifacts(projectRoot, syncNetworkName, addressesForSync);
+
     console.log(`Logged deployment set to ${filePath}, ${libDataPath}, and ${frontendDataPath}`);
 }
 
@@ -213,4 +225,15 @@ export function logChatUtilityDeployment(deploymentData: any): void {
     }
     fs.writeFileSync(frontendDataPath, JSON.stringify(deploymentData, jsonSerializer, 2));
     console.log(`📦 Frontend data saved to: ${frontendDataPath}`);
+
+    const syncNetworkName =
+        (deploymentData as any).networkName ||
+        (deploymentData as any).network ||
+        "";
+    const addressesForSync = {
+        timelock: (deploymentData.contracts as any)?.TimelockController?.address,
+        chatUtility: (deploymentData.contracts as any)?.LCAIChatUtility?.address,
+    };
+
+    syncDeploymentArtifacts(projectRoot, syncNetworkName, addressesForSync);
 }

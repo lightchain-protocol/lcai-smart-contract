@@ -2,6 +2,12 @@
   "name": "lcai-dao",
   "version": "1.0.0",
   "type": "module",
+  "scripts": {
+    "compile": "hardhat compile",
+    "deploy:testnet": "hardhat run scripts/deployment/deploy-smart-contracts.ts --network lcai_testnet_v2",
+    "deploy:testnet:treasury": "hardhat run scripts/deployment/deploy-lcai-treasury.ts --network lcai_testnet_v2",
+    "deploy:testnet:chat-subscription": "hardhat run scripts/deployment/deploy-lcai-chat-subscription.ts --network lcai_testnet_v2"
+  },
   "devDependencies": {
     "@nomicfoundation/hardhat-ignition": "^3.0.3",
     "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.0",
