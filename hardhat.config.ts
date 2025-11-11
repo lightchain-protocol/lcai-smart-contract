@@ -7,6 +7,26 @@ import hardhatVerify from "@nomicfoundation/hardhat-verify";
 
 // Load environment variables
 dotenv.config();
+const {
+  OWNER_WALLET_PRIVATE_KEY,
+  LCAI_TESTNET_RPC_URL,
+  LCAI_TESTNET_V2_RPC_URL,
+  LCAI_TESTNET_V2_CHAIN_ID,
+  LCAI_BLOCKSCOUT_NAME,
+  LCAI_BLOCKSCOUT_BROWSER_URL,
+  LCAI_BLOCKSCOUT_API_URL,
+  SEPOLIA_RPC_URL,
+  SEPOLIA_PRIVATE_KEY,
+  MAINNET_RPC_URL,
+  MAINNET_PRIVATE_KEY,
+} = process.env;
+
+const lcaiBlockscoutBrowserUrl =
+  (LCAI_BLOCKSCOUT_BROWSER_URL && LCAI_BLOCKSCOUT_BROWSER_URL.trim()) ||
+  "https://testnet.lightscan.app";
+const lcaiBlockscoutApiUrl =
+  (LCAI_BLOCKSCOUT_API_URL && LCAI_BLOCKSCOUT_API_URL.trim()) ||
+  `${lcaiBlockscoutBrowserUrl.replace(/\/$/, "")}/api`;
 
 const config: HardhatUserConfig = {
   plugins: [hardhatToolboxMochaEthersPlugin, hardhatVerify],
@@ -58,52 +78,62 @@ const config: HardhatUserConfig = {
       type: "http",
       chainType: "l1",
       chainId: 504,
-      url: "https://light-testnet-rpc.lightchain.ai",
+      url:
+        (LCAI_TESTNET_RPC_URL && LCAI_TESTNET_RPC_URL.trim()) ||
+        "https://light-testnet-rpc.lightchain.ai",
       explorer: {
         name: "Lightchain Testnet Explorer",
-        url: "https://testnet.lightscan.app",
+        url: lcaiBlockscoutBrowserUrl,
       },
-      accounts: process.env.OWNER_WALLET_PRIVATE_KEY
-        ? [process.env.OWNER_WALLET_PRIVATE_KEY]
-        : [],
+      accounts: OWNER_WALLET_PRIVATE_KEY ? [OWNER_WALLET_PRIVATE_KEY] : [],
+    },
+    lcai_testnet_v2: {
+      name: "Lightchain Testnet v2",
+      type: "http",
+      chainType: "l1",
+      chainId: Number(LCAI_TESTNET_V2_CHAIN_ID ?? 504),
+      url:
+        (LCAI_TESTNET_V2_RPC_URL && LCAI_TESTNET_V2_RPC_URL.trim()) ||
+        "http://localhost:8545",
+      explorer: {
+        name: LCAI_BLOCKSCOUT_NAME || "Lightchain v2 Blockscout",
+        url: lcaiBlockscoutBrowserUrl,
+      },
+      accounts: OWNER_WALLET_PRIVATE_KEY ? [OWNER_WALLET_PRIVATE_KEY] : [],
     },
     sepolia: {
       name: "Sepolia Testnet",
       type: "http",
       chainType: "l1",
       chainId: 11155111,
-      url: "https://rpc.sepolia.org",
+      url: SEPOLIA_RPC_URL || "https://rpc.sepolia.org",
       explorer: {
         name: "Sepolia Etherscan",
         url: "https://sepolia.etherscan.io",
       },
-      accounts: process.env.SEPOLIA_PRIVATE_KEY
-        ? [process.env.SEPOLIA_PRIVATE_KEY]
-        : [],
+      accounts: SEPOLIA_PRIVATE_KEY ? [SEPOLIA_PRIVATE_KEY] : [],
     },
     mainnet: {
       name: "Ethereum Mainnet",
       type: "http",
       chainType: "l1",
       chainId: 1,
-      url: process.env.MAINNET_RPC_URL || "https://eth.llamarpc.com",
+      url: MAINNET_RPC_URL || "https://eth.llamarpc.com",
       explorer: {
         name: "Etherscan",
         url: "https://etherscan.io",
       },
-      accounts: process.env.MAINNET_PRIVATE_KEY
-        ? [process.env.MAINNET_PRIVATE_KEY]
-        : [],
+      accounts: MAINNET_PRIVATE_KEY ? [MAINNET_PRIVATE_KEY] : [],
     },
   },
   chainDescriptors: {
-    504: {
-      name: "Lightchain Testnet",
-      blockExplorers: {
-        blockscout: {
-          name: "Lightchain Testnet Explorer",
-          url: "https://testnet.lightscan.app:443",
-          apiUrl: "https://testnet.lightscan.app/api",
+     504: {
+       name: "Lightchain Testnet",
+       blockExplorers: {
+         blockscout: {
+          name: LCAI_BLOCKSCOUT_NAME || "Lightchain Testnet Explorer",
+          url: lcaiBlockscoutBrowserUrl,
+          apiUrl: lcaiBlockscoutApiUrl,
         },
       },
     },

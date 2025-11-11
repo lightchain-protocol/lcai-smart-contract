@@ -2,6 +2,7 @@
 import { network } from "hardhat";
 import fs from "fs";
 import hardhatConfig from "../../hardhat.config.js";
+import { syncDeploymentArtifacts } from "./utils/updateDeploymentArtifacts.js";
 
 // -------------------- ABI & Contract Utilities --------------------
 import { saveAbi } from "../abi/saveAbi.js";
@@ -201,6 +202,11 @@ async function main() {
   fs.writeFileSync(deploymentFile, JSON.stringify(deploymentData, null, 2));
   console.log(`📁 Deployment data saved to: ${deploymentFile}`);
   console.log("");
+
+  syncDeploymentArtifacts(process.cwd(), networkName, {
+    treasury: treasuryAddress,
+    timelock: timelockAddress,
+  });
 
   // Print next steps
   console.log("📋 Next Steps:");
