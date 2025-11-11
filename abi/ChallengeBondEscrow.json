@@ -1,0 +1,180 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {"name": "_timelock", "type": "address"},
+      {"name": "_resolver", "type": "address"},
+      {"name": "_treasury", "type": "address"},
+      {"name": "_minBond", "type": "uint256"},
+      {"name": "_challengeWindowSecs", "type": "uint256"}
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "RESOLVER_ROLE",
+    "inputs": [],
+    "outputs": [{"name": "", "type": "bytes32"}],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "minBond",
+    "inputs": [],
+    "outputs": [{"name": "", "type": "uint256"}],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "challengeWindowSecs",
+    "inputs": [],
+    "outputs": [{"name": "", "type": "uint256"}],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "treasury",
+    "inputs": [],
+    "outputs": [{"name": "", "type": "address"}],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "postBond",
+    "inputs": [{"name": "challengeId", "type": "bytes32"}],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "refundBond",
+    "inputs": [
+      {"name": "challengeId", "type": "bytes32"},
+      {"name": "to", "type": "address"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "slashBond",
+    "inputs": [
+      {"name": "challengeId", "type": "bytes32"},
+      {"name": "beneficiary", "type": "address"},
+      {"name": "amount", "type": "uint256"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getBond",
+    "inputs": [{"name": "challengeId", "type": "bytes32"}],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          {"name": "challenger", "type": "address"},
+          {"name": "amount", "type": "uint256"},
+          {"name": "postedAt", "type": "uint64"},
+          {"name": "expiresAt", "type": "uint64"},
+          {"name": "refunded", "type": "bool"},
+          {"name": "slashed", "type": "bool"}
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "setMinBond",
+    "inputs": [{"name": "_minBond", "type": "uint256"}],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setChallengeWindow",
+    "inputs": [{"name": "_secs", "type": "uint256"}],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setTreasury",
+    "inputs": [{"name": "_treasury", "type": "address"}],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setResolver",
+    "inputs": [
+      {"name": "_resolver", "type": "address"},
+      {"name": "enabled", "type": "bool"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "pause",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "unpause",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [{"name": "", "type": "address"}],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [{"name": "newOwner", "type": "address"}],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "BondPosted",
+    "inputs": [
+      {"name": "challengeId", "type": "bytes32", "indexed": true},
+      {"name": "challenger", "type": "address", "indexed": true},
+      {"name": "amount", "type": "uint256", "indexed": false},
+      {"name": "postedAt", "type": "uint256", "indexed": false},
+      {"name": "expiresAt", "type": "uint256", "indexed": false}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BondRefunded",
+    "inputs": [
+      {"name": "challengeId", "type": "bytes32", "indexed": true},
+      {"name": "to", "type": "address", "indexed": true},
+      {"name": "amount", "type": "uint256", "indexed": false}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BondSlashed",
+    "inputs": [
+      {"name": "challengeId", "type": "bytes32", "indexed": true},
+      {"name": "beneficiary", "type": "address", "indexed": true},
+      {"name": "amount", "type": "uint256", "indexed": false}
+    ],
+    "anonymous": false
+  }
+]

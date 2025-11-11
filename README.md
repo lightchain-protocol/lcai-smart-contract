@@ -11,6 +11,7 @@ A comprehensive decentralized governance system built with OpenZeppelin Governor
 - **`WLCAI.sol`** - ETH-backed governance token with 1:1 ETH deposits and withdrawals
 - **`PresaleVotingPower.sol`** - Admin-controlled voting power assignment system
 - **`LCAIChatUtility.sol`** - Chat utility contract with session management and reward distribution
+- **`ChallengeBondEscrow.sol`** - Minimal escrow for fraud-challenge bonds (post/refund/slash)
 - **`Counter.sol`** - Example target contract for testing governance actions
 
 ### Governance Features
@@ -262,6 +263,69 @@ npx hardhat node
 
 # Deploy contracts (in another terminal)
 make deploy-all NETWORK=hardhat
+
+## 🧾 Challenge Bond Escrow
+
+`ChallengeBondEscrow.sol` provides a minimal bond escrow to economically secure the fraud-proof system.
+
+- Owner: LCAITimeLock (constructor)
+- Roles: `RESOLVER_ROLE` (granted to a DAO-controlled resolver that can refund/slash)
+- Storage: per-challenge bond with challenger, amount, postedAt, expiresAt, refunded/slashed flags
+- Config: `minBond`, `challengeWindowSecs`, `treasury`
+
+### Key Methods & Roles
+
+- Roles
+  - Owner: Timelock (LCAITimeLock) — can set resolver, treasury, params, pause/unpause
+  - `RESOLVER_ROLE`: can call refundBond and slashBond (grant to DAO-controlled executor)
+
+- Functions
+  - `postBond(bytes32 challengeId)` payable
+    - Requires `msg.value >= minBond` and that the challenge has no prior bond
+    - Records timestamps and emits `BondPosted`
+  - `refundBond(bytes32 challengeId, address to)` onlyResolver
+    - Refunds the posted amount and emits `BondRefunded`
+  - `slashBond(bytes32 challengeId, address beneficiary, uint256 amount)` onlyResolver
+    - Supports partial slashing: transfers `amount` to the beneficiary (default: `treasury`) and emits `BondSlashed`
+    - Any remaining locked amount can later be refunded via `refundBond`
+  - Admin (only owner): `setMinBond`, `setChallengeWindow`, `setTreasury`, `setResolver(addr, enabled)`, `pause`, `unpause`
+
+### Deploy Escrow
+
+```
+npx hardhat run Smart Contract/scripts/deploy-challenge-bond-escrow.ts --network <network>
+# Optional ENV:
+#   TIMLOCK=0x... RESOLVER=0x... TREASURY=0x...
+#   MIN_BOND_WEI=100000000000000000000  CHALLENGE_WINDOW_SECS=96
+```
+
+The script writes to `Smart Contract/data/deployments/<network>/ChallengeBondEscrow.json` and exports `BOND_ESCROW_ADDRESS` in a local `.env` file in the same folder.
+
+### Events
+
+- `BondPosted(bytes32 challengeId, address challenger, uint256 amount, uint256 postedAt, uint256 expiresAt)`
+- `BondRefunded(bytes32 challengeId, address to, uint256 amount)`
+- `BondSlashed(bytes32 challengeId, address beneficiary, uint256 amount)`
+
+### Challenge ID Semantics
+
+The off-chain Dispute Manager derives the escrow `challengeId` deterministically from the dispute identifier to enable cross-system correlation:
+
+- Derivation: `challengeId = sha256(disputeID)` (32-byte digest)
+- Usage: the derived `challengeId` is passed to `postBond`, `refundBond`, and `slashBond` so explorers and tools can link on-chain events with off-chain disputes.
+- Mapping: when a `BondPosted`/`BondRefunded`/`BondSlashed` event is emitted, indexers can:
+  1) read `challengeId` from the event,
+  2) query the dispute REST/gRPC API for a dispute whose `sha256(id)` equals that `challengeId`.
+
+Note: the `disputeID` is stable and created from core dispute fields (challenger, task, submission slot, and evidence hash). The `sha256` derivation ensures consistent 1:1 mapping without storing plaintext IDs on-chain.
+
+### Tests
+
+```
+npx hardhat test Smart Contract/test/ChallengeBondEscrow.ts
+```
+
+Coverage includes happy paths for post/refund/slash, pause semantics, role gating, and double-spend protection.
 ```
 
 ### Testnet Deployment
