@@ -1,0 +1,35 @@
+# AIVM On-Chain Integration (LC-211)
+
+This document captures the smart-contract updates introduced for LC-211 in support of the Week-5 on-chain integration roadmap.
+
+## Aggregated Score Finalization
+- `AIVMModelRegistry` now stores an `aggregator` address representing the off-chain median-of-means service.
+- `submitAggregatedResult` replaces the previous owner-only validation entrypoint, requiring the caller to match the configured aggregator.
+- The function records validator participation metadata, emits `AggregatedResultSubmitted`, toggles challenge windows, and drives approval/rejection based on policy thresholds.
+- `setAggregator(address)` allows governance/operators to rotate the authorized off-chain service address without redeploying the registry.
+
+## Access Policy Configuration
+- Each variant can now be bound to an `AccessPolicyConfig` via `setAccessPolicy(variantId, requireTicket, minStakeRequired, ticketManager, ticketTTL)`.
+- Policies are exposed through `getAccessPolicy`, enabling off-chain services (stake-gating, CLI preflight checks, etc.) to read the requirements without hard-coded configuration.
+- Events (`AccessPolicyUpdated`) surface changes so downstream indexers or the access service can react in real time.
+
+## Challenge Outcome Recording
+- A new helper `recordChallengeOutcome` delegates to the internal `_processChallengeOutcome` routine. This mirrors `resolveChallenge` but clarifies the integration point for the re-validation committee once a dispute is adjudicated.
+
+## Ticket Lifecycle Contract
+- `AIVMTicketManager` is a lightweight Ownable + ReentrancyGuard contract responsible for issuing and revoking workflow access tickets.
+- Core functions:
+  - `issueTicket(wallet, variantId, ttl)` → emits `TicketIssued` with the derived ticket ID.
+  - `validateTicket(ticketId, wallet, variantId)` → stateless verification used by APIs/CLIs.
+  - `revokeTicket(ticketId)` → allows operators to invalidate compromised or expired tickets ahead of TTL.
+  - `getTicket(ticketId)` → exposes issuance metadata for audit tooling.
+- Tickets derive their ID from the wallet, variant, and block context, yielding unique per-request credentials without storing secrets on-chain.
+
+## Tests
+- `test/ModelRegistry.test.ts` now covers aggregator authorization and access policy read/write flows.
+- `test/AIVMTicketManager.test.ts` validates ticket issuance, retrieval, validation, and revocation semantics using ethers v6 patterns.
+
+## Next Steps
+- Wire the access service (LC-206) to call `issueTicket`/`revokeTicket` as part of validator and trainer onboarding flows.
+- Extend deployment scripts to surface the new contract addresses and aggregator configuration via deployment artifacts.
+- Integrate aggregator CLI/SDK components so the new `AggregatedResultSubmitted` event feeds analytics and monitoring dashboards.

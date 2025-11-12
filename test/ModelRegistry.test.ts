@@ -279,6 +279,45 @@ describe("AIVMModelRegistry", function () {
     });
   });
 
+  describe("Aggregator & Access Policy Controls", function () {
+    it("Should revert aggregated result from non-aggregator", async function () {
+      const { modelRegistry } = await deployModelRegistry();
+
+      await modelRegistry.registerBaseModel("base-001", "QmCID", "QmMeta", "v1.0", "QmBench");
+      await modelRegistry
+        .connect(trainer)
+        .registerVariant("var-001", "QmVarCID", "QmMeta", "base-001", {
+          value: TRAINER_STAKE_MIN,
+        });
+
+      await modelRegistry.connect(validator1).stakeForValidation("var-001", { value: VALIDATOR_STAKE_MIN });
+
+      await expect(
+        modelRegistry
+          .connect(trainer)
+          .submitAggregatedResult("var-001", 9000, "QmReport", 25)
+      ).to.be.revertedWith("Caller not aggregator");
+    });
+
+    it("Should allow owner to update aggregator", async function () {
+      const { modelRegistry } = await deployModelRegistry();
+      await modelRegistry.setAggregator(trainer.address);
+      expect(await modelRegistry.aggregator()).to.equal(trainer.address);
+    });
+
+    it("Should store and retrieve access policy", async function () {
+      const { modelRegistry } = await deployModelRegistry();
+
+      await modelRegistry.setAccessPolicy("var-001", true, parseEther("10"), validator1.address, 3600);
+
+      const policy = await modelRegistry.getAccessPolicy("var-001");
+      expect(policy.requireTicket).to.equal(true);
+      expect(policy.minStakeRequired).to.equal(parseEther("10"));
+      expect(policy.ticketManager).to.equal(validator1.address);
+      expect(policy.ticketTTL).to.equal(3600);
+    });
+  });
+
   describe("Finalization", function () {
     it("Should finalize variant after challenge window", async function () {
       const { modelRegistry } = await deployModelRegistry();
