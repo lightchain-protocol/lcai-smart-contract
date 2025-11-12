@@ -78,6 +78,13 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
         uint256 validatorStakeMin; // Minimum stake required from each validator
         uint256 challengeWindowHours; // Challenge window duration (e.g., 48 hours)
     }
+
+    struct AccessPolicyConfig {
+        bool requireTicket;          // Whether a download ticket is required
+        uint256 minStakeRequired;    // Additional stake/payment requirement prior to access
+        address ticketManager;       // Ticket manager contract responsible for issuing tickets
+        uint256 ticketTTL;           // Optional hint for ticket expiry (in seconds)
+    }
     
     // ============================================================================
     // STATE VARIABLES
@@ -95,6 +102,8 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
     
     // Validation policy
     ValidationPolicy public policy;
+    address public aggregator;
+    mapping(string => AccessPolicyConfig) private variantAccessPolicies;
     
     // Staking balances
     mapping(address => uint256) public stakedBalances;
@@ -182,6 +191,21 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
         uint256 validatorStakeMin,
         uint256 challengeWindowHours
     );
+
+    event AggregatedResultSubmitted(
+        string indexed variantId,
+        uint256 avgScore,
+        uint256 validatorCount,
+        string reportCID
+    );
+
+    event AccessPolicyUpdated(
+        string indexed variantId,
+        bool requireTicket,
+        uint256 minStakeRequired,
+        address ticketManager,
+        uint256 ticketTTL
+    );
     
     // ============================================================================
     // CONSTRUCTOR
@@ -189,6 +213,7 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
     
     constructor(address payable _treasury) Ownable(msg.sender) {
         treasury = _treasury;
+        aggregator = msg.sender;
         
         // Default validation policy
         policy = ValidationPolicy({
@@ -348,18 +373,19 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
      * @param avgScore Average score from validators (0-10000, scaled by 100)
      * @param reportCID IPFS CID for validation report
      * @param validatorCount Number of validators who participated
-     * @dev Only callable by owner (Model Service address)
+     * @dev Only callable by configured aggregator address
      */
-    function submitValidationResult(
+    function submitAggregatedResult(
         string calldata variantId,
         uint256 avgScore,
         string calldata reportCID,
         uint256 validatorCount
-    ) external onlyOwner {
+    ) public {
         require(bytes(variants[variantId].variantId).length > 0, "Variant not found");
         require(variants[variantId].status == ModelStatus.Validating, "Variant not validating");
         require(validatorCount >= policy.minValidators, "Insufficient validators");
         require(avgScore <= 10000, "Score out of range");
+        require(msg.sender == aggregator, "Caller not aggregator");
         
         ModelVariant storage variant = variants[variantId];
         variant.avgScore = avgScore;
@@ -368,6 +394,7 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
         variant.validatorCount = validatorCount;
         
         bool passed = avgScore >= policy.minScore;
+        emit AggregatedResultSubmitted(variantId, avgScore, validatorCount, reportCID);
         
         emit ValidationResult(variantId, avgScore, passed, validatorCount);
         
@@ -387,6 +414,15 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
             
             emit VariantRejected(variantId, avgScore, "Score below minimum");
         }
+    }
+
+    function submitValidationResult(
+        string calldata variantId,
+        uint256 avgScore,
+        string calldata reportCID,
+        uint256 validatorCount
+    ) external {
+        submitAggregatedResult(variantId, avgScore, reportCID, validatorCount);
     }
     
     // ============================================================================
@@ -464,44 +500,52 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
         address challenger,
         bool challengeValid
     ) external onlyOwner {
+        _processChallengeOutcome(variantId, challenger, challengeValid);
+    }
+
+    function recordChallengeOutcome(
+        string calldata variantId,
+        address challenger,
+        bool challengeValid
+    ) external onlyOwner {
+        _processChallengeOutcome(variantId, challenger, challengeValid);
+    }
+
+    function _processChallengeOutcome(
+        string calldata variantId,
+        address challenger,
+        bool challengeValid
+    ) internal {
         require(bytes(variants[variantId].variantId).length > 0, "Variant not found");
         ModelVariant storage variant = variants[variantId];
-        
+
         if (challengeValid) {
-            // Challenge upheld: variant was fraudulent
             variant.status = ModelStatus.Rejected;
             variant.challengeWindowOpen = false;
-            
-            // Reward challenger
+
             uint256 challengerStake = stakedBalances[challenger];
             if (challengerStake > 0) {
                 stakedBalances[challenger] = 0;
-                (bool success, ) = payable(challenger).call{value: challengerStake * 2}(""); // Double reward
+                (bool success, ) = payable(challenger).call{value: challengerStake * 2}("");
                 require(success, "Challenger reward failed");
             }
-            
-            // Slash original validators for fraudulent scores
+
             ValidatorStake[] storage stakes = variantValidators[variantId];
             for (uint i = 0; i < stakes.length; i++) {
                 _slashStake(stakes[i].validator, stakes[i].amount, "Fraudulent validation");
                 stakes[i].isSlashed = true;
             }
-            
-            // Slash trainer
+
             _slashStake(variant.trainer, variant.trainerStake, "Fraudulent variant");
-            
         } else {
-            // Challenge dismissed: variant is valid
-            // Burn challenger's stake
             uint256 challengerStake = stakedBalances[challenger];
             if (challengerStake > 0) {
                 _slashStake(challenger, challengerStake, "Invalid challenge");
             }
-            
-            // Variant proceeds to finalization
+
             variant.challengeWindowOpen = false;
         }
-        
+
         emit ChallengeResolved(variantId, challengeValid, challenger);
     }
     
@@ -612,7 +656,33 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
         
         emit PolicyUpdated(minScore, minValidators, trainerStakeMin, validatorStakeMin, challengeWindowHours);
     }
-    
+
+    function setAggregator(address _aggregator) external onlyOwner {
+        require(_aggregator != address(0), "Invalid aggregator");
+        aggregator = _aggregator;
+    }
+
+    function setAccessPolicy(
+        string calldata variantId,
+        bool requireTicket,
+        uint256 minStakeRequired,
+        address ticketManager,
+        uint256 ticketTTL
+    ) external onlyOwner {
+        require(bytes(variantId).length > 0, "Variant ID required");
+        AccessPolicyConfig storage config = variantAccessPolicies[variantId];
+        config.requireTicket = requireTicket;
+        config.minStakeRequired = minStakeRequired;
+        config.ticketManager = ticketManager;
+        config.ticketTTL = ticketTTL;
+
+        emit AccessPolicyUpdated(variantId, requireTicket, minStakeRequired, ticketManager, ticketTTL);
+    }
+
+    function getAccessPolicy(string calldata variantId) external view returns (AccessPolicyConfig memory) {
+        return variantAccessPolicies[variantId];
+    }
+ 
     /**
      * @notice Update treasury address (owner only)
      */
