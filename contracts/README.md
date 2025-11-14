@@ -12,6 +12,7 @@ This folder contains the on-chain components that power the Lightchain staking, 
 - Stores model variants, aggregated score submissions, and access policy metadata.
 - `submitScore` (aggregator-only) records the promised `score/reportCID` payload while deriving validator counts from on-chain stakes and emitting `ScoreSubmitted`.
 - `requestDecryptionTicket` wraps `AIVMTicketManager.issueTicket`, persisting ticket receipts (`getTicketReceipt`, `getAccountTicketIds`, `getVariantTicketIds`) so downstream services have a single registry touchpoint.
+- `challengeVariant` + `slashValidators` complete the dispute workflow: challengers post evidence/stake during the challenge window, and governance can slash specific validators/trainers, reward the challenger, and update variant status with on-chain events.
 - Integrates with `AIVMTicketManager` for ticket-aware access control.
 
 ### AIVMTicketManager.sol
