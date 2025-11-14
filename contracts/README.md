@@ -10,6 +10,8 @@ This folder contains the on-chain components that power the Lightchain staking, 
 
 ### AIVMModelRegistry.sol
 - Stores model variants, aggregated score submissions, and access policy metadata.
+- `submitScore` (aggregator-only) records the promised `score/reportCID` payload while deriving validator counts from on-chain stakes and emitting `ScoreSubmitted`.
+- `requestDecryptionTicket` wraps `AIVMTicketManager.issueTicket`, persisting ticket receipts (`getTicketReceipt`, `getAccountTicketIds`, `getVariantTicketIds`) so downstream services have a single registry touchpoint.
 - Integrates with `AIVMTicketManager` for ticket-aware access control.
 
 ### AIVMTicketManager.sol
