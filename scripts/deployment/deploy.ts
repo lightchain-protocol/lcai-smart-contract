@@ -158,6 +158,26 @@ async function main() {
   console.log("✅ Timelock roles configured\n");
 
   // ============================================================
+  // Deploy BenchmarkRegistry
+  // ============================================================
+  printDeployingContract("BenchmarkRegistry");
+  const benchmarkRegistryFactory = await ethers.getContractFactory("BenchmarkRegistry");
+  const benchmarkRegistry = await benchmarkRegistryFactory.deploy();
+  await benchmarkRegistry.waitForDeployment();
+  const benchmarkRegistryAddress = await benchmarkRegistry.getAddress();
+
+  printContractDeployed("BenchmarkRegistry", benchmarkRegistryAddress);
+  printExplorerContractLink("BenchmarkRegistry", benchmarkRegistryAddress, explorerUrl);
+  saveAbi("BenchmarkRegistry", benchmarkRegistryFactory);
+
+  deploymentData.contracts.BenchmarkRegistry = {
+    address: benchmarkRegistryAddress,
+    constructorArgs: []
+  };
+
+  console.log("✅ Benchmark discovery registry live\n");
+
+  // ============================================================
   // Deploy Counter (Test Contract)
   // ============================================================
   printDeployingContract("Counter");
@@ -192,6 +212,7 @@ async function main() {
       LCAITimeLock: timelockAddress,
       PresaleVotingPower: presaleAddress,
       LCAIGovernor: governorAddress,
+      BenchmarkRegistry: benchmarkRegistryAddress,
       Counter: counterAddress
     },
     config: {
