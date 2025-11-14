@@ -447,6 +447,86 @@ describe("AIVMModelRegistry", function () {
     });
   });
 
+  describe("Dispute Workflow", function () {
+    async function setupApprovedVariant() {
+      const { modelRegistry } = await deployModelRegistry();
+
+      await modelRegistry.registerBaseModel("base-001", "QmCID", "QmMeta", "v1.0", "QmBench");
+      await modelRegistry
+        .connect(trainer)
+        .registerVariant("var-001", "QmVarCID", "QmMeta", "base-001", {
+          value: TRAINER_STAKE_MIN,
+        });
+
+      await modelRegistry.updatePolicy(8000, 1, TRAINER_STAKE_MIN, VALIDATOR_STAKE_MIN, 48);
+
+      await modelRegistry
+        .connect(validator1)
+        .stakeForValidation("var-001", { value: VALIDATOR_STAKE_MIN });
+
+      await modelRegistry.submitScore("var-001", 9000, "QmReportCID");
+
+      return { modelRegistry };
+    }
+
+    it("stores challenge evidence and stake via challengeVariant", async function () {
+      const { modelRegistry } = await setupApprovedVariant();
+
+      await expect(
+        modelRegistry.connect(challenger).challengeVariant(
+          "var-001",
+          "ipfs://evidence-123",
+          "score mismatch",
+          {
+            value: TRAINER_STAKE_MIN,
+          }
+        )
+      )
+        .to.emit(modelRegistry, "ChallengeSubmitted")
+        .withArgs("var-001", challenger.address, "ipfs://evidence-123", "score mismatch", TRAINER_STAKE_MIN);
+
+      const receipt = await modelRegistry.getChallengeReceipt("var-001");
+      expect(receipt.challenger).to.equal(challenger.address);
+      expect(receipt.evidenceCID).to.equal("ipfs://evidence-123");
+      expect(receipt.resolved).to.equal(false);
+      expect(receipt.stake).to.equal(TRAINER_STAKE_MIN);
+    });
+
+    it("slashes selected validators and resolves challenge", async function () {
+      const { modelRegistry } = await setupApprovedVariant();
+
+      await modelRegistry.connect(challenger).challengeVariant(
+        "var-001",
+        "ipfs://bad-batch",
+        "fraudulent validation",
+        { value: TRAINER_STAKE_MIN }
+      );
+
+      await expect(
+        modelRegistry.slashValidators(
+          "var-001",
+          [validator1.address],
+          "validator misconduct",
+          true,
+          true
+        )
+      )
+        .to.emit(modelRegistry, "ValidatorsSlashed")
+        .withArgs("var-001", [validator1.address], VALIDATOR_STAKE_MIN, "validator misconduct");
+
+      const stakes = await modelRegistry.getVariantValidators("var-001");
+      expect(stakes[0].isSlashed).to.equal(true);
+
+      const variant = await modelRegistry.getVariant("var-001");
+      expect(variant.status).to.equal(3); // Rejected
+      expect(variant.challengeWindowOpen).to.equal(false);
+
+      const receipt = await modelRegistry.getChallengeReceipt("var-001");
+      expect(receipt.resolved).to.equal(true);
+      expect(receipt.accepted).to.equal(true);
+    });
+  });
+
   describe("Finalization", function () {
     it("Should finalize variant after challenge window", async function () {
       const { modelRegistry } = await deployModelRegistry();

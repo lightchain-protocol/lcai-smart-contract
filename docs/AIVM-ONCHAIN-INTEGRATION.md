@@ -18,6 +18,8 @@ This document captures the smart-contract updates introduced for LC-211 in suppo
 
 ## Challenge Outcome Recording
 - A new helper `recordChallengeOutcome` delegates to the internal `_processChallengeOutcome` routine. This mirrors `resolveChallenge` but clarifies the integration point for the re-validation committee once a dispute is adjudicated.
+- Dispute flow now matches the docs: `challengeVariant(variantId, evidenceCID, reason)` starts an on-chain challenge with stake + evidence, and `slashValidators(variantId, validatorAddresses, reason, rejectVariant, rewardChallenger)` lets governance target bad actors, close the challenge window, and optionally slash the trainer/issue challenger rewards.
+- `getChallengeReceipt` exposes currently-active challenge metadata so the access service and dashboards can render pending disputes.
 
 ## Ticket Lifecycle Contract
 - `AIVMTicketManager` is a lightweight Ownable + ReentrancyGuard contract responsible for issuing and revoking workflow access tickets.
