@@ -29,6 +29,13 @@ This document captures the smart-contract updates introduced for LC-211 in suppo
 - `test/ModelRegistry.test.ts` now covers aggregator authorization and access policy read/write flows.
 - `test/AIVMTicketManager.test.ts` validates ticket issuance, retrieval, validation, and revocation semantics using ethers v6 patterns.
 
+## Benchmark Catalog Registry
+- `BenchmarkRegistry.sol` is now part of `main` and stores encrypted benchmark metadata (domain, taskType, manifest hash, wrapped DEK) so validators can discover datasets without relying on off-chain spreadsheets.
+- `registerBenchmark` is owner-gated (curated list) and automatically creates the default assignment for a domain/task pair while emitting `BenchmarkRegistered`.
+- Assignment helpers (`setBenchmarkForDomainTask`, `getBenchmarkForVariant`) allow the DAO or curator to rotate benchmarks as new versions go live; queries revert if the benchmark is inactive.
+- Listing helpers (`listBenchmarksByDomain`, `listBenchmarksByTask`, `listBenchmarks`) mirror the SDK requirements for surfacing catalog filters in the CLI and dashboard.
+- Deployment scripts now emit the BenchmarkRegistry address, save its ABI under `abi/BenchmarkRegistry.json`, and include it in `data/deployments` so downstream services can pin to the same network coordinates.
+
 ## Next Steps
 - Wire the access service (LC-206) to call `issueTicket`/`revokeTicket` as part of validator and trainer onboarding flows.
 - Extend deployment scripts to surface the new contract addresses and aggregator configuration via deployment artifacts.
