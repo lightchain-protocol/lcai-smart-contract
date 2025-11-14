@@ -1,8 +1,41 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+interface IAIVMTicketManager {
+    function issueTicket(address wallet, string memory variantId, uint256 ttl) external returns (bytes32);
+}
+
+contract RegistryOwnable {
+    address private _owner;
+
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    constructor() {
+        _transferOwnership(msg.sender);
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == _owner, "Ownable: caller is not the owner");
+        _;
+    }
+
+    function owner() public view returns (address) {
+        return _owner;
+    }
+
+    function transferOwnership(address newOwner) public onlyOwner {
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        _transferOwnership(newOwner);
+    }
+
+    function _transferOwnership(address newOwner) internal {
+        address oldOwner = _owner;
+        _owner = newOwner;
+        emit OwnershipTransferred(oldOwner, newOwner);
+    }
+}
 
 /**
  * @title AIVMModelRegistry
@@ -20,7 +53,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * 8. Challenge window (24-72 hours)
  * 9. Finalization (variant available for chat/inference)
  */
-contract AIVMModelRegistry is Ownable, ReentrancyGuard {
+contract AIVMModelRegistry is RegistryOwnable, ReentrancyGuard {
     
     // ============================================================================
     // ENUMS & STRUCTS
@@ -85,6 +118,15 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
         address ticketManager;       // Ticket manager contract responsible for issuing tickets
         uint256 ticketTTL;           // Optional hint for ticket expiry (in seconds)
     }
+
+    struct TicketReceipt {
+        bytes32 ticketId;
+        address requester;
+        string variantId;
+        uint256 expiresAt;
+        uint256 requestedAt;
+        address ticketManager;
+    }
     
     // ============================================================================
     // STATE VARIABLES
@@ -104,13 +146,16 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
     ValidationPolicy public policy;
     address public aggregator;
     mapping(string => AccessPolicyConfig) private variantAccessPolicies;
+    mapping(bytes32 => TicketReceipt) private ticketReceipts;
+    mapping(address => bytes32[]) private accountTickets;
+    mapping(string => bytes32[]) private variantTicketHistory;
     
     // Staking balances
     mapping(address => uint256) public stakedBalances;
     mapping(address => uint256) public slashedAmounts;
     
     // Treasury for slashed stakes
-    address payable public treasury;
+    address private treasuryAddress;
     
     // ============================================================================
     // EVENTS
@@ -206,13 +251,29 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
         address ticketManager,
         uint256 ticketTTL
     );
+
+    event ScoreSubmitted(
+        string indexed variantId,
+        uint256 score,
+        string reportCID,
+        address indexed submitter,
+        uint256 validatorCount
+    );
+
+    event DecryptionTicketRequested(
+        string indexed variantId,
+        address indexed requester,
+        bytes32 indexed ticketId,
+        uint256 expiresAt,
+        address ticketManager
+    );
     
     // ============================================================================
     // CONSTRUCTOR
     // ============================================================================
     
-    constructor(address payable _treasury) Ownable(msg.sender) {
-        treasury = _treasury;
+    constructor(address _treasury) {
+        treasuryAddress = _treasury;
         aggregator = msg.sender;
         
         // Default validation policy
@@ -368,6 +429,21 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
     // ============================================================================
     
     /**
+     * @notice Convenience helper for the aggregator to submit scores without passing validator counts.
+     * @param variantId Variant being validated
+     * @param score Average score from validators (0-10000, scaled by 100)
+     * @param reportCID IPFS CID for validation report
+     */
+    function submitScore(
+        string calldata variantId,
+        uint256 score,
+        string calldata reportCID
+    ) external {
+        uint256 validatorCount = variantValidators[variantId].length;
+        _handleAggregatedResult(variantId, score, reportCID, validatorCount);
+    }
+
+    /**
      * @notice Submit aggregated validation result
      * @param variantId Variant being validated
      * @param avgScore Average score from validators (0-10000, scaled by 100)
@@ -381,39 +457,7 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
         string calldata reportCID,
         uint256 validatorCount
     ) public {
-        require(bytes(variants[variantId].variantId).length > 0, "Variant not found");
-        require(variants[variantId].status == ModelStatus.Validating, "Variant not validating");
-        require(validatorCount >= policy.minValidators, "Insufficient validators");
-        require(avgScore <= 10000, "Score out of range");
-        require(msg.sender == aggregator, "Caller not aggregator");
-        
-        ModelVariant storage variant = variants[variantId];
-        variant.avgScore = avgScore;
-        variant.reportCID = reportCID;
-        variant.validatedAt = block.timestamp;
-        variant.validatorCount = validatorCount;
-        
-        bool passed = avgScore >= policy.minScore;
-        emit AggregatedResultSubmitted(variantId, avgScore, validatorCount, reportCID);
-        
-        emit ValidationResult(variantId, avgScore, passed, validatorCount);
-        
-        if (passed) {
-            // Approve and start challenge window
-            variant.status = ModelStatus.Approved;
-            variant.challengeWindowOpen = true;
-            variant.challengeDeadline = block.timestamp + (policy.challengeWindowHours * 1 hours);
-            
-            emit VariantApproved(variantId, avgScore, variant.challengeDeadline);
-        } else {
-            // Reject variant
-            variant.status = ModelStatus.Rejected;
-            
-            // Slash trainer stake (poor quality submission)
-            _slashStake(variant.trainer, variant.trainerStake, "Low quality variant");
-            
-            emit VariantRejected(variantId, avgScore, "Score below minimum");
-        }
+        _handleAggregatedResult(variantId, avgScore, reportCID, validatorCount);
     }
 
     function submitValidationResult(
@@ -423,6 +467,42 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
         uint256 validatorCount
     ) external {
         submitAggregatedResult(variantId, avgScore, reportCID, validatorCount);
+    }
+
+    function _handleAggregatedResult(
+        string calldata variantId,
+        uint256 avgScore,
+        string calldata reportCID,
+        uint256 validatorCount
+    ) internal {
+        require(bytes(variants[variantId].variantId).length > 0, "Variant not found");
+        require(variants[variantId].status == ModelStatus.Validating, "Variant not validating");
+        require(validatorCount >= policy.minValidators, "Insufficient validators");
+        require(avgScore <= 10000, "Score out of range");
+        require(msg.sender == aggregator, "Caller not aggregator");
+
+        ModelVariant storage variant = variants[variantId];
+        variant.avgScore = avgScore;
+        variant.reportCID = reportCID;
+        variant.validatedAt = block.timestamp;
+        variant.validatorCount = validatorCount;
+
+        bool passed = avgScore >= policy.minScore;
+        emit AggregatedResultSubmitted(variantId, avgScore, validatorCount, reportCID);
+        emit ScoreSubmitted(variantId, avgScore, reportCID, msg.sender, validatorCount);
+        emit ValidationResult(variantId, avgScore, passed, validatorCount);
+
+        if (passed) {
+            variant.status = ModelStatus.Approved;
+            variant.challengeWindowOpen = true;
+            variant.challengeDeadline = block.timestamp + (policy.challengeWindowHours * 1 hours);
+
+            emit VariantApproved(variantId, avgScore, variant.challengeDeadline);
+        } else {
+            variant.status = ModelStatus.Rejected;
+            _slashStake(variant.trainer, variant.trainerStake, "Low quality variant");
+            emit VariantRejected(variantId, avgScore, "Score below minimum");
+        }
     }
     
     // ============================================================================
@@ -479,6 +559,7 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
         require(variant.challengeWindowOpen, "Challenge window closed");
         require(block.timestamp < variant.challengeDeadline, "Challenge window expired");
         require(msg.value >= policy.trainerStakeMin, "Insufficient challenge stake");
+        require(bytes(reason).length > 0, "Challenge reason required");
         
         // Store challenger's stake
         stakedBalances[msg.sender] += msg.value;
@@ -559,7 +640,7 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
             slashedAmounts[user] += amount;
             
             // Send slashed amount to treasury
-            (bool success, ) = treasury.call{value: amount}("");
+            (bool success, ) = payable(treasuryAddress).call{value: amount}("");
             require(success, "Treasury transfer failed");
             
             emit ValidatorSlashed(user, "", amount, reason);
@@ -682,13 +763,65 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
     function getAccessPolicy(string calldata variantId) external view returns (AccessPolicyConfig memory) {
         return variantAccessPolicies[variantId];
     }
+
+    function getTicketReceipt(bytes32 ticketId) external view returns (TicketReceipt memory) {
+        require(ticketReceipts[ticketId].ticketId != bytes32(0), "Ticket not found");
+        return ticketReceipts[ticketId];
+    }
+
+    function getAccountTicketIds(address requester) external view returns (bytes32[] memory) {
+        return accountTickets[requester];
+    }
+
+    function getVariantTicketIds(string calldata variantId) external view returns (bytes32[] memory) {
+        return variantTicketHistory[variantId];
+    }
+
+    function requestDecryptionTicket(string calldata variantId) external nonReentrant returns (bytes32) {
+        ModelVariant storage variant = variants[variantId];
+        require(bytes(variant.variantId).length > 0, "Variant not found");
+        require(
+            variant.status == ModelStatus.Approved || variant.status == ModelStatus.Finalized,
+            "Variant not accessible"
+        );
+
+        AccessPolicyConfig memory config = variantAccessPolicies[variantId];
+        require(config.requireTicket, "Ticket not required");
+        require(config.ticketManager != address(0), "Ticket manager missing");
+
+        if (config.minStakeRequired > 0) {
+            require(stakedBalances[msg.sender] >= config.minStakeRequired, "Stake threshold not met");
+        }
+
+        uint256 ttl = config.ticketTTL;
+        bytes32 ticketId = IAIVMTicketManager(config.ticketManager).issueTicket(msg.sender, variantId, ttl);
+        uint256 expiresAt = ttl == 0 ? 0 : block.timestamp + ttl;
+
+        TicketReceipt storage receipt = ticketReceipts[ticketId];
+        receipt.ticketId = ticketId;
+        receipt.requester = msg.sender;
+        receipt.variantId = variantId;
+        receipt.expiresAt = expiresAt;
+        receipt.requestedAt = block.timestamp;
+        receipt.ticketManager = config.ticketManager;
+
+        accountTickets[msg.sender].push(ticketId);
+        variantTicketHistory[variantId].push(ticketId);
+
+        emit DecryptionTicketRequested(variantId, msg.sender, ticketId, expiresAt, config.ticketManager);
+        return ticketId;
+    }
  
     /**
      * @notice Update treasury address (owner only)
      */
-    function setTreasury(address payable _treasury) external onlyOwner {
+    function treasury() external view returns (address payable) {
+        return payable(treasuryAddress);
+    }
+    
+    function setTreasury(address _treasury) external onlyOwner {
         require(_treasury != address(0), "Invalid treasury address");
-        treasury = _treasury;
+        treasuryAddress = _treasury;
     }
     
     /**

@@ -5,6 +5,7 @@ This document captures the smart-contract updates introduced for LC-211 in suppo
 ## Aggregated Score Finalization
 - `AIVMModelRegistry` now stores an `aggregator` address representing the off-chain median-of-means service.
 - `submitAggregatedResult` replaces the previous owner-only validation entrypoint, requiring the caller to match the configured aggregator.
+- `submitScore(variantId, score, reportCID)` is a convenience wrapper that derives validator counts from on-chain stakes so the aggregator only needs to provide the score/report payload promised in `CONTRACT_DEPLOYMENT.md`.
 - The function records validator participation metadata, emits `AggregatedResultSubmitted`, toggles challenge windows, and drives approval/rejection based on policy thresholds.
 - `setAggregator(address)` allows governance/operators to rotate the authorized off-chain service address without redeploying the registry.
 
@@ -12,6 +13,8 @@ This document captures the smart-contract updates introduced for LC-211 in suppo
 - Each variant can now be bound to an `AccessPolicyConfig` via `setAccessPolicy(variantId, requireTicket, minStakeRequired, ticketManager, ticketTTL)`.
 - Policies are exposed through `getAccessPolicy`, enabling off-chain services (stake-gating, CLI preflight checks, etc.) to read the requirements without hard-coded configuration.
 - Events (`AccessPolicyUpdated`) surface changes so downstream indexers or the access service can react in real time.
+- Trainers and validators can call `requestDecryptionTicket(variantId)` once a variant is Approved/Finalized; the registry delegates to `AIVMTicketManager`, persists ticket receipts, and emits `DecryptionTicketRequested`.
+- Helper views `getTicketReceipt`, `getAccountTicketIds`, and `getVariantTicketIds` give APIs/SDKs an easy way to display active tickets without re-querying multiple contracts.
 
 ## Challenge Outcome Recording
 - A new helper `recordChallengeOutcome` delegates to the internal `_processChallengeOutcome` routine. This mirrors `resolveChallenge` but clarifies the integration point for the re-validation committee once a dispute is adjudicated.
