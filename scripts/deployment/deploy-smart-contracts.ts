@@ -159,6 +159,75 @@ async function main() {
     deploymentResults.benchmarkRegistry = benchmarkRegistryAddress;
     console.log("");
 
+    // ==================== STEP 2.5: Deploy AIVMTicketManager ====================
+    console.log("2.5️⃣ Deploying AIVMTicketManager...");
+    console.log("=====================================");
+
+    printDeployingContract("AIVMTicketManager");
+    const AIVMTicketManager = await ethers.getContractFactory("AIVMTicketManager", deployer);
+    const ticketManager = await AIVMTicketManager.deploy();
+    await ticketManager.waitForDeployment();
+    const ticketManagerAddress = await ticketManager.getAddress();
+    console.log(`   ✅ AIVMTicketManager deployed at: ${ticketManagerAddress}`);
+    printExplorerContractLink("AIVMTicketManager", ticketManagerAddress, explorerUrl);
+
+    try {
+        saveAbi("AIVMTicketManager", AIVMTicketManager);
+        console.log("   📄 AIVMTicketManager ABI saved");
+    } catch (error: any) {
+        console.warn("   ⚠️ Failed to save AIVMTicketManager ABI:", error.message);
+    }
+
+    deploymentResults.ticketManager = ticketManagerAddress;
+    console.log("");
+
+    // ==================== STEP 2.6: Deploy AIVMModelRegistry ====================
+    console.log("2.6️⃣ Deploying AIVMModelRegistry...");
+    console.log("====================================");
+
+    // Get treasury address (use timelock as treasury if LCAITreasury not available)
+    const treasuryAddressEnv = process.env.TREASURY_ADDRESS?.trim();
+    const treasuryAddress = treasuryAddressEnv || timelockAddress; // Fallback to timelock
+    
+    if (!treasuryAddressEnv) {
+        console.log(`   ⚠️ TREASURY_ADDRESS not set, using Timelock (${timelockAddress}) as treasury`);
+    } else {
+        console.log(`   📋 Using treasury address: ${treasuryAddress}`);
+    }
+
+    printDeployingContract("AIVMModelRegistry");
+    const AIVMModelRegistry = await ethers.getContractFactory("AIVMModelRegistry", deployer);
+    const modelRegistry = await AIVMModelRegistry.deploy(treasuryAddress);
+    await modelRegistry.waitForDeployment();
+    const modelRegistryAddress = await modelRegistry.getAddress();
+    console.log(`   ✅ AIVMModelRegistry deployed at: ${modelRegistryAddress}`);
+    printExplorerContractLink("AIVMModelRegistry", modelRegistryAddress, explorerUrl);
+
+    // Set aggregator role (if needed)
+    const aggregatorAddress = process.env.AGGREGATOR_ADDRESS?.trim() || deployer.address;
+    if (aggregatorAddress !== deployer.address) {
+        console.log(`   🔧 Setting aggregator to: ${aggregatorAddress}`);
+        try {
+            const setAggregatorTx = await modelRegistry.setAggregator(aggregatorAddress);
+            await setAggregatorTx.wait();
+            console.log(`   ✅ Aggregator set to ${aggregatorAddress}`);
+        } catch (error: any) {
+            console.warn(`   ⚠️ Failed to set aggregator: ${error.message}`);
+        }
+    }
+
+    try {
+        saveAbi("AIVMModelRegistry", AIVMModelRegistry);
+        console.log("   📄 AIVMModelRegistry ABI saved");
+    } catch (error: any) {
+        console.warn("   ⚠️ Failed to save AIVMModelRegistry ABI:", error.message);
+    }
+
+    deploymentResults.modelRegistry = modelRegistryAddress;
+    deploymentResults.modelRegistryTreasury = treasuryAddress;
+    deploymentResults.modelRegistryAggregator = aggregatorAddress;
+    console.log("");
+
     // ==================== STEP 3: Deploy LCAIChatUtility ====================
     console.log("3️⃣ Deploying LCAIChatUtility...");
     console.log("=================================");
@@ -324,6 +393,21 @@ async function main() {
                 address: chatUtilityAddress,
                 explorerUrl: `${explorerUrl}/address/${chatUtilityAddress}`,
             },
+            BenchmarkRegistry: {
+                name: 'BenchmarkRegistry',
+                address: benchmarkRegistryAddress,
+                explorerUrl: `${explorerUrl}/address/${benchmarkRegistryAddress}`,
+            },
+            AIVMTicketManager: {
+                name: 'AIVMTicketManager',
+                address: ticketManagerAddress,
+                explorerUrl: `${explorerUrl}/address/${ticketManagerAddress}`,
+            },
+            AIVMModelRegistry: {
+                name: 'AIVMModelRegistry',
+                address: modelRegistryAddress,
+                explorerUrl: `${explorerUrl}/address/${modelRegistryAddress}`,
+            },
         },
         configuration: {
             timelockDelay: CONFIG.timelockDelay,
@@ -357,6 +441,8 @@ async function main() {
     console.log(`   ⏰ LCAITimeLock: ${timelockAddress}`);
     console.log(`   🗳️  LCAIGovernor: ${governorAddress}`);
     console.log(`   📚 BenchmarkRegistry: ${benchmarkRegistryAddress}`);
+    console.log(`   🎫 AIVMTicketManager: ${ticketManagerAddress}`);
+    console.log(`   🤖 AIVMModelRegistry: ${modelRegistryAddress}`);
     console.log(`   💬 LCAIChatUtility: ${chatUtilityAddress}`);
     console.log("");
     console.log("🔗 Explorer Links:");
@@ -365,6 +451,8 @@ async function main() {
     console.log(`   LCAITimeLock: ${explorerUrl}/address/${timelockAddress}`);
     console.log(`   LCAIGovernor: ${explorerUrl}/address/${governorAddress}`);
     console.log(`   BenchmarkRegistry: ${explorerUrl}/address/${benchmarkRegistryAddress}`);
+    console.log(`   AIVMTicketManager: ${explorerUrl}/address/${ticketManagerAddress}`);
+    console.log(`   AIVMModelRegistry: ${explorerUrl}/address/${modelRegistryAddress}`);
     console.log(`   LCAIChatUtility: ${explorerUrl}/address/${chatUtilityAddress}`);
     console.log("");
     console.log("📋 Next Steps:");
