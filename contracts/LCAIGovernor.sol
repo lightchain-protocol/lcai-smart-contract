@@ -2,11 +2,21 @@
 pragma solidity ^0.8.24;
 
 import {Governor} from "@openzeppelin/contracts/governance/Governor.sol";
-import {GovernorCountingSimple} from "@openzeppelin/contracts/governance/extensions/GovernorCountingSimple.sol";
-import {GovernorVotes} from "@openzeppelin/contracts/governance/extensions/GovernorVotes.sol";
-import {GovernorVotesQuorumFraction} from "@openzeppelin/contracts/governance/extensions/GovernorVotesQuorumFraction.sol";
-import {GovernorTimelockControl} from "@openzeppelin/contracts/governance/extensions/GovernorTimelockControl.sol";
-import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
+import {
+    GovernorCountingSimple
+} from "@openzeppelin/contracts/governance/extensions/GovernorCountingSimple.sol";
+import {
+    GovernorVotes
+} from "@openzeppelin/contracts/governance/extensions/GovernorVotes.sol";
+import {
+    GovernorVotesQuorumFraction
+} from "@openzeppelin/contracts/governance/extensions/GovernorVotesQuorumFraction.sol";
+import {
+    GovernorTimelockControl
+} from "@openzeppelin/contracts/governance/extensions/GovernorTimelockControl.sol";
+import {
+    TimelockController
+} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {IVotes} from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
@@ -48,7 +58,7 @@ contract LCAIGovernor is
     )
         Governor("LCAIGovernor")
         GovernorVotes(_token)
-        GovernorVotesQuorumFraction(4)
+        GovernorVotesQuorumFraction(3)
         GovernorTimelockControl(_timelock)
     {
         if (_admin == address(0)) {
@@ -67,7 +77,7 @@ contract LCAIGovernor is
     }
 
     function votingPeriod() public pure override returns (uint256) {
-        return 14400; // 2 days // 50400; // 1 week
+        return 14400; // 2 days // 100800; // 14 days
     }
 
     function proposalThreshold() public pure override returns (uint256) {

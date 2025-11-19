@@ -2,10 +2,14 @@
 pragma solidity ^0.8.20;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {
+    ReentrancyGuard
+} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {
+    SafeERC20
+} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract WLCAITreasury is ReentrancyGuard, Pausable, Ownable {
     using SafeERC20 for IERC20;
@@ -74,10 +78,12 @@ contract WLCAITreasury is ReentrancyGuard, Pausable, Ownable {
             revert WhitelistedAddressNotAllowed();
         if (isBlacklisted && blacklistedAddresses[_recipient])
             revert BlacklistedAddressNotAllowed();
+
         if (address(this).balance < _amount) revert InsufficientBalance();
         (bool success, ) = _recipient.call{value: _amount}("");
         if (!success) revert TransferFailed();
         spent[address(0)] += _amount;
+
         emit ETHTransferred(_recipient, _amount);
     }
 
@@ -98,6 +104,7 @@ contract WLCAITreasury is ReentrancyGuard, Pausable, Ownable {
 
         token.safeTransfer(_recipient, _amount);
         spent[address(_token)] += _amount;
+
         emit ERC20Transferred(_token, _recipient, _amount);
     }
 
