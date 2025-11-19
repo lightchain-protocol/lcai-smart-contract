@@ -2,6 +2,7 @@
 import { network } from "hardhat";
 import fs from "fs";
 import hardhatConfig from "../../hardhat.config.js";
+import { syncDeploymentArtifacts } from "./utils/updateDeploymentArtifacts.js";
 
 // -------------------- ABI & Contract Utilities --------------------
 import { saveAbi } from "../abi/saveAbi.js";
@@ -32,16 +33,13 @@ async function main() {
   const [deployer] = await ethers.getSigners();
 
   // Get addresses from environment
-  const treasuryAddress = "0x0aaf59F419FAb76e25b1dCe13414Ea66f0f339C4";
-  const defaultAdminAddress = deployer.address;
+  const treasuryAddress = process.env.TREASURY_ADDRESS?.trim();
+  const defaultAdminAddress =
+    process.env.DEFAULT_ADMIN_ADDRESS?.trim() || deployer.address;
 
-  if (!treasuryAddress || !defaultAdminAddress) {
-    console.error("❌ Error: Missing required environment variables");
-    console.error("   Required: TREASURY_ADDRESS, DEFAULT_ADMIN_ADDRESS");
-    console.error("");
-    console.error("   Set them in .env file:");
-    console.error("   TREASURY_ADDRESS=0x...");
-    console.error("   DEFAULT_ADMIN_ADDRESS=0x...");
+  if (!treasuryAddress) {
+    console.error("❌ Error: Missing required environment variable TREASURY_ADDRESS");
+    console.error("   Set TREASURY_ADDRESS=0x... in your .env file before deploying.");
     process.exit(1);
   }
 
@@ -216,6 +214,11 @@ async function main() {
   fs.writeFileSync(deploymentFile, JSON.stringify(deploymentData, null, 2));
   console.log(`📁 Deployment data saved to: ${deploymentFile}`);
   console.log("");
+
+  syncDeploymentArtifacts(process.cwd(), networkName, {
+    chatSubscription: subscriptionAddress,
+    treasury: treasuryAddress,
+  });
 
   // Print next steps
   console.log("📋 Next Steps:");
