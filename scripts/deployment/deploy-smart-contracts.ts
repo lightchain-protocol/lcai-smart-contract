@@ -137,8 +137,30 @@ async function main() {
 
     console.log("");
 
-    // ==================== STEP 2: Deploy LCAIChatUtility ====================
-    console.log("2️⃣ Deploying LCAIChatUtility...");
+    // ==================== STEP 2: Deploy BenchmarkRegistry ====================
+    console.log("2️⃣ Deploying BenchmarkRegistry...");
+    console.log("==================================");
+
+    printDeployingContract("BenchmarkRegistry");
+    const BenchmarkRegistry = await ethers.getContractFactory("BenchmarkRegistry", deployer);
+    const benchmarkRegistry = await BenchmarkRegistry.deploy();
+    await benchmarkRegistry.waitForDeployment();
+    const benchmarkRegistryAddress = await benchmarkRegistry.getAddress();
+    console.log(`   ✅ BenchmarkRegistry deployed at: ${benchmarkRegistryAddress}`);
+    printExplorerContractLink("BenchmarkRegistry", benchmarkRegistryAddress, explorerUrl);
+
+    try {
+        saveAbi("BenchmarkRegistry", BenchmarkRegistry);
+        console.log("   📄 BenchmarkRegistry ABI saved");
+    } catch (error: any) {
+        console.warn("   ⚠️ Failed to save BenchmarkRegistry ABI:", error.message);
+    }
+
+    deploymentResults.benchmarkRegistry = benchmarkRegistryAddress;
+    console.log("");
+
+    // ==================== STEP 3: Deploy LCAIChatUtility ====================
+    console.log("3️⃣ Deploying LCAIChatUtility...");
     console.log("=================================");
 
     printDeployingContract("LCAIChatUtility");
@@ -334,6 +356,7 @@ async function main() {
     console.log(`   🏛️  PresaleVotingPower: ${presaleVotingPowerAddress}`);
     console.log(`   ⏰ LCAITimeLock: ${timelockAddress}`);
     console.log(`   🗳️  LCAIGovernor: ${governorAddress}`);
+    console.log(`   📚 BenchmarkRegistry: ${benchmarkRegistryAddress}`);
     console.log(`   💬 LCAIChatUtility: ${chatUtilityAddress}`);
     console.log("");
     console.log("🔗 Explorer Links:");
@@ -341,6 +364,7 @@ async function main() {
     console.log(`   PresaleVotingPower: ${explorerUrl}/address/${presaleVotingPowerAddress}`);
     console.log(`   LCAITimeLock: ${explorerUrl}/address/${timelockAddress}`);
     console.log(`   LCAIGovernor: ${explorerUrl}/address/${governorAddress}`);
+    console.log(`   BenchmarkRegistry: ${explorerUrl}/address/${benchmarkRegistryAddress}`);
     console.log(`   LCAIChatUtility: ${explorerUrl}/address/${chatUtilityAddress}`);
     console.log("");
     console.log("📋 Next Steps:");

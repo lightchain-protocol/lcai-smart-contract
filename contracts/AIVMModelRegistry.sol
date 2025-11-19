@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+interface IAIVMTicketManager {
+    function issueTicket(address wallet, string memory variantId, uint256 ttl) external returns (bytes32);
+}
 
 /**
  * @title AIVMModelRegistry
@@ -20,7 +23,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * 8. Challenge window (24-72 hours)
  * 9. Finalization (variant available for chat/inference)
  */
-contract AIVMModelRegistry is Ownable, ReentrancyGuard {
+contract AIVMModelRegistry is ReentrancyGuard {
     
     // ============================================================================
     // ENUMS & STRUCTS
@@ -78,6 +81,32 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
         uint256 validatorStakeMin; // Minimum stake required from each validator
         uint256 challengeWindowHours; // Challenge window duration (e.g., 48 hours)
     }
+
+    struct AccessPolicyConfig {
+        bool requireTicket;          // Whether a download ticket is required
+        uint256 minStakeRequired;    // Additional stake/payment requirement prior to access
+        address ticketManager;       // Ticket manager contract responsible for issuing tickets
+        uint256 ticketTTL;           // Optional hint for ticket expiry (in seconds)
+    }
+
+    struct TicketReceipt {
+        bytes32 ticketId;
+        address requester;
+        string variantId;
+        uint256 expiresAt;
+        uint256 requestedAt;
+        address ticketManager;
+    }
+
+    struct ChallengeRecord {
+        address challenger;
+        uint256 stake;
+        string evidenceCID;
+        string reason;
+        uint256 submittedAt;
+        bool resolved;
+        bool accepted;
+    }
     
     // ============================================================================
     // STATE VARIABLES
@@ -95,13 +124,20 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
     
     // Validation policy
     ValidationPolicy public policy;
+    address public aggregator;
+    address private contractOwner;
+    mapping(string => AccessPolicyConfig) private variantAccessPolicies;
+    mapping(bytes32 => TicketReceipt) private ticketReceipts;
+    mapping(address => bytes32[]) private accountTickets;
+    mapping(string => bytes32[]) private variantTicketHistory;
+    mapping(string => ChallengeRecord) private activeChallenges;
     
     // Staking balances
     mapping(address => uint256) public stakedBalances;
     mapping(address => uint256) public slashedAmounts;
     
     // Treasury for slashed stakes
-    address payable public treasury;
+    address private treasuryAddress;
     
     // ============================================================================
     // EVENTS
@@ -157,16 +193,37 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
         uint256 challengeStake
     );
     
+    event ChallengeSubmitted(
+        string indexed variantId,
+        address indexed challenger,
+        string evidenceCID,
+        string reason,
+        uint256 stake
+    );
+    
     event ChallengeResolved(
         string indexed variantId,
         bool challengeValid,
         address indexed challenger
+    );
+
+    event ChallengeDismissed(
+        string indexed variantId,
+        address indexed challenger,
+        string reason
     );
     
     event ValidatorSlashed(
         address indexed validator,
         string indexed variantId,
         uint256 amount,
+        string reason
+    );
+
+    event ValidatorsSlashed(
+        string indexed variantId,
+        address[] validators,
+        uint256 totalAmount,
         string reason
     );
     
@@ -182,13 +239,60 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
         uint256 validatorStakeMin,
         uint256 challengeWindowHours
     );
+
+    event AggregatedResultSubmitted(
+        string indexed variantId,
+        uint256 avgScore,
+        uint256 validatorCount,
+        string reportCID
+    );
+
+    event AccessPolicyUpdated(
+        string indexed variantId,
+        bool requireTicket,
+        uint256 minStakeRequired,
+        address ticketManager,
+        uint256 ticketTTL
+    );
+
+    event ScoreSubmitted(
+        string indexed variantId,
+        uint256 score,
+        string reportCID,
+        address indexed submitter,
+        uint256 validatorCount
+    );
+
+    event DecryptionTicketRequested(
+        string indexed variantId,
+        address indexed requester,
+        bytes32 indexed ticketId,
+        uint256 expiresAt,
+        address ticketManager
+    );
+
+    modifier onlyOwner() {
+        require(msg.sender == contractOwner, "Caller is not the owner");
+        _;
+    }
+
+    function owner() public view returns (address) {
+        return contractOwner;
+    }
+
+    function transferOwnership(address newOwner) public onlyOwner {
+        require(newOwner != address(0), "New owner is zero address");
+        contractOwner = newOwner;
+    }
     
     // ============================================================================
     // CONSTRUCTOR
     // ============================================================================
     
-    constructor(address payable _treasury) Ownable(msg.sender) {
-        treasury = _treasury;
+    constructor(address _treasury) {
+        contractOwner = msg.sender;
+        treasuryAddress = _treasury;
+        aggregator = msg.sender;
         
         // Default validation policy
         policy = ValidationPolicy({
@@ -343,48 +447,78 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
     // ============================================================================
     
     /**
+     * @notice Convenience helper for the aggregator to submit scores without passing validator counts.
+     * @param variantId Variant being validated
+     * @param score Average score from validators (0-10000, scaled by 100)
+     * @param reportCID IPFS CID for validation report
+     */
+    function submitScore(
+        string calldata variantId,
+        uint256 score,
+        string calldata reportCID
+    ) external {
+        uint256 validatorCount = variantValidators[variantId].length;
+        _handleAggregatedResult(variantId, score, reportCID, validatorCount);
+    }
+
+    /**
      * @notice Submit aggregated validation result
      * @param variantId Variant being validated
      * @param avgScore Average score from validators (0-10000, scaled by 100)
      * @param reportCID IPFS CID for validation report
      * @param validatorCount Number of validators who participated
-     * @dev Only callable by owner (Model Service address)
+     * @dev Only callable by configured aggregator address
      */
+    function submitAggregatedResult(
+        string calldata variantId,
+        uint256 avgScore,
+        string calldata reportCID,
+        uint256 validatorCount
+    ) public {
+        _handleAggregatedResult(variantId, avgScore, reportCID, validatorCount);
+    }
+
     function submitValidationResult(
         string calldata variantId,
         uint256 avgScore,
         string calldata reportCID,
         uint256 validatorCount
-    ) external onlyOwner {
+    ) external {
+        submitAggregatedResult(variantId, avgScore, reportCID, validatorCount);
+    }
+
+    function _handleAggregatedResult(
+        string calldata variantId,
+        uint256 avgScore,
+        string calldata reportCID,
+        uint256 validatorCount
+    ) internal {
         require(bytes(variants[variantId].variantId).length > 0, "Variant not found");
         require(variants[variantId].status == ModelStatus.Validating, "Variant not validating");
         require(validatorCount >= policy.minValidators, "Insufficient validators");
         require(avgScore <= 10000, "Score out of range");
-        
+        require(msg.sender == aggregator, "Caller not aggregator");
+
         ModelVariant storage variant = variants[variantId];
         variant.avgScore = avgScore;
         variant.reportCID = reportCID;
         variant.validatedAt = block.timestamp;
         variant.validatorCount = validatorCount;
-        
+
         bool passed = avgScore >= policy.minScore;
-        
+        emit AggregatedResultSubmitted(variantId, avgScore, validatorCount, reportCID);
+        emit ScoreSubmitted(variantId, avgScore, reportCID, msg.sender, validatorCount);
         emit ValidationResult(variantId, avgScore, passed, validatorCount);
-        
+
         if (passed) {
-            // Approve and start challenge window
             variant.status = ModelStatus.Approved;
             variant.challengeWindowOpen = true;
             variant.challengeDeadline = block.timestamp + (policy.challengeWindowHours * 1 hours);
-            
+
             emit VariantApproved(variantId, avgScore, variant.challengeDeadline);
         } else {
-            // Reject variant
             variant.status = ModelStatus.Rejected;
-            
-            // Slash trainer stake (poor quality submission)
-            _slashStake(variant.trainer, variant.trainerStake, "Low quality variant");
-            
+            _slashStake(variant.trainer, variant.trainerStake, "Low quality variant", variantId);
             emit VariantRejected(variantId, avgScore, "Score below minimum");
         }
     }
@@ -432,25 +566,158 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
      * @param variantId Variant to challenge
      * @param reason Challenge reason
      */
+    function challengeVariant(
+        string calldata variantId,
+        string calldata evidenceCID,
+        string calldata reason
+    ) external payable nonReentrant {
+        require(bytes(evidenceCID).length > 0, "Evidence required");
+        require(bytes(reason).length > 0, "Reason required");
+        _startChallenge(variantId, reason, evidenceCID, msg.value, msg.sender);
+    }
+
     function openChallenge(
         string calldata variantId,
         string calldata reason
     ) external payable nonReentrant {
+        require(bytes(reason).length > 0, "Challenge reason required");
+        _startChallenge(variantId, reason, string(""), msg.value, msg.sender);
+    }
+
+    function _startChallenge(
+        string calldata variantId,
+        string memory reason,
+        string memory evidenceCID,
+        uint256 stake,
+        address challenger
+    ) internal {
         require(bytes(variants[variantId].variantId).length > 0, "Variant not found");
         ModelVariant storage variant = variants[variantId];
-        
+
         require(variant.status == ModelStatus.Approved, "Variant not approved");
         require(variant.challengeWindowOpen, "Challenge window closed");
         require(block.timestamp < variant.challengeDeadline, "Challenge window expired");
-        require(msg.value >= policy.trainerStakeMin, "Insufficient challenge stake");
-        
-        // Store challenger's stake
-        stakedBalances[msg.sender] += msg.value;
-        
-        emit ChallengeOpened(variantId, msg.sender, msg.value);
-        
-        // TODO: Trigger re-validation by K-of-N committee
-        // For now, emit event for off-chain handling
+        require(stake >= policy.trainerStakeMin, "Insufficient challenge stake");
+
+        ChallengeRecord storage existing = activeChallenges[variantId];
+        require(
+            existing.challenger == address(0) || existing.resolved,
+            "Challenge already active"
+        );
+
+        stakedBalances[challenger] += stake;
+
+        activeChallenges[variantId] = ChallengeRecord({
+            challenger: challenger,
+            stake: stake,
+            evidenceCID: evidenceCID,
+            reason: reason,
+            submittedAt: block.timestamp,
+            resolved: false,
+            accepted: false
+        });
+
+        emit ChallengeOpened(variantId, challenger, stake);
+        emit ChallengeSubmitted(variantId, challenger, evidenceCID, reason, stake);
+    }
+
+    function slashValidators(
+        string calldata variantId,
+        address[] calldata validators,
+        string calldata reason,
+        bool rejectVariant,
+        bool rewardChallenger
+    ) external onlyOwner {
+        require(validators.length > 0, "Validators required");
+        require(bytes(reason).length > 0, "Reason required");
+
+        ChallengeRecord storage challenge = activeChallenges[variantId];
+        require(challenge.challenger != address(0), "No active challenge");
+        require(!challenge.resolved, "Challenge already resolved");
+
+        ValidatorStake[] storage stakes = variantValidators[variantId];
+        uint256 totalSlashed;
+
+        for (uint256 i = 0; i < validators.length; i++) {
+            address validator = validators[i];
+            bool matched = false;
+
+            for (uint256 j = 0; j < stakes.length; j++) {
+                if (stakes[j].validator == validator) {
+                    require(!stakes[j].isSlashed, "Validator already slashed");
+                    uint256 amount = stakes[j].amount;
+                    stakes[j].isSlashed = true;
+                    _slashStake(validator, amount, reason, variantId);
+                    totalSlashed += amount;
+                    matched = true;
+                    break;
+                }
+            }
+
+            require(matched, "Validator stake missing");
+        }
+
+        ModelVariant storage variant = variants[variantId];
+        require(bytes(variant.variantId).length > 0, "Variant not found");
+        variant.challengeWindowOpen = false;
+
+        if (rejectVariant) {
+            variant.status = ModelStatus.Rejected;
+            _slashStake(variant.trainer, variant.trainerStake, "Trainer slashed", variantId);
+        }
+
+        challenge.resolved = true;
+        challenge.accepted = true;
+
+        if (rewardChallenger) {
+            _rewardChallenger(variantId);
+        } else {
+            _refundChallengeStake(variantId);
+        }
+
+        emit ValidatorsSlashed(variantId, validators, totalSlashed, reason);
+        emit ChallengeResolved(variantId, true, challenge.challenger);
+    }
+
+    function _rewardChallenger(string memory variantId) internal {
+        ChallengeRecord storage challenge = activeChallenges[variantId];
+        uint256 stake = challenge.stake;
+        if (stake == 0) {
+            return;
+        }
+
+        address challenger = challenge.challenger;
+        if (stakedBalances[challenger] >= stake) {
+            stakedBalances[challenger] -= stake;
+        } else {
+            stake = 0;
+        }
+
+        if (stake > 0) {
+            uint256 doubleStake = stake * 2;
+            uint256 payout = address(this).balance >= doubleStake ? doubleStake : stake;
+            (bool success, ) = payable(challenger).call{value: payout}("");
+            require(success, "Challenge reward failed");
+        }
+
+        challenge.stake = 0;
+    }
+
+    function _refundChallengeStake(string memory variantId) internal {
+        ChallengeRecord storage challenge = activeChallenges[variantId];
+        uint256 stake = challenge.stake;
+        if (stake == 0) {
+            return;
+        }
+
+        address challenger = challenge.challenger;
+        if (stakedBalances[challenger] >= stake) {
+            stakedBalances[challenger] -= stake;
+            (bool success, ) = payable(challenger).call{value: stake}("");
+            require(success, "Challenge refund failed");
+        }
+
+        challenge.stake = 0;
     }
     
     /**
@@ -464,61 +731,81 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
         address challenger,
         bool challengeValid
     ) external onlyOwner {
+        _processChallengeOutcome(variantId, challenger, challengeValid);
+    }
+
+    function recordChallengeOutcome(
+        string calldata variantId,
+        address challenger,
+        bool challengeValid
+    ) external onlyOwner {
+        _processChallengeOutcome(variantId, challenger, challengeValid);
+    }
+
+    function _processChallengeOutcome(
+        string calldata variantId,
+        address challenger,
+        bool challengeValid
+    ) internal {
         require(bytes(variants[variantId].variantId).length > 0, "Variant not found");
         ModelVariant storage variant = variants[variantId];
-        
+
         if (challengeValid) {
-            // Challenge upheld: variant was fraudulent
             variant.status = ModelStatus.Rejected;
             variant.challengeWindowOpen = false;
-            
-            // Reward challenger
+
             uint256 challengerStake = stakedBalances[challenger];
             if (challengerStake > 0) {
                 stakedBalances[challenger] = 0;
-                (bool success, ) = payable(challenger).call{value: challengerStake * 2}(""); // Double reward
+                (bool success, ) = payable(challenger).call{value: challengerStake * 2}("");
                 require(success, "Challenger reward failed");
             }
-            
-            // Slash original validators for fraudulent scores
+
             ValidatorStake[] storage stakes = variantValidators[variantId];
             for (uint i = 0; i < stakes.length; i++) {
-                _slashStake(stakes[i].validator, stakes[i].amount, "Fraudulent validation");
+                _slashStake(stakes[i].validator, stakes[i].amount, "Fraudulent validation", variantId);
                 stakes[i].isSlashed = true;
             }
-            
-            // Slash trainer
-            _slashStake(variant.trainer, variant.trainerStake, "Fraudulent variant");
-            
+
+            _slashStake(variant.trainer, variant.trainerStake, "Fraudulent variant", variantId);
         } else {
-            // Challenge dismissed: variant is valid
-            // Burn challenger's stake
             uint256 challengerStake = stakedBalances[challenger];
             if (challengerStake > 0) {
-                _slashStake(challenger, challengerStake, "Invalid challenge");
+                _slashStake(challenger, challengerStake, "Invalid challenge", variantId);
             }
-            
-            // Variant proceeds to finalization
+
             variant.challengeWindowOpen = false;
         }
-        
+
         emit ChallengeResolved(variantId, challengeValid, challenger);
+
+        ChallengeRecord storage record = activeChallenges[variantId];
+        if (record.challenger != address(0) && !record.resolved) {
+            record.resolved = true;
+            record.accepted = challengeValid;
+            if (challengeValid) {
+                _rewardChallenger(variantId);
+            } else {
+                _refundChallengeStake(variantId);
+                emit ChallengeDismissed(variantId, record.challenger, "Challenge invalid");
+            }
+        }
     }
     
     // ============================================================================
     // STAKING HELPERS
     // ============================================================================
     
-    function _slashStake(address user, uint256 amount, string memory reason) internal {
+    function _slashStake(address user, uint256 amount, string memory reason, string memory variantId) internal {
         if (stakedBalances[user] >= amount) {
             stakedBalances[user] -= amount;
             slashedAmounts[user] += amount;
             
             // Send slashed amount to treasury
-            (bool success, ) = treasury.call{value: amount}("");
+            (bool success, ) = payable(treasuryAddress).call{value: amount}("");
             require(success, "Treasury transfer failed");
             
-            emit ValidatorSlashed(user, "", amount, reason);
+            emit ValidatorSlashed(user, variantId, amount, reason);
         }
     }
     
@@ -612,13 +899,95 @@ contract AIVMModelRegistry is Ownable, ReentrancyGuard {
         
         emit PolicyUpdated(minScore, minValidators, trainerStakeMin, validatorStakeMin, challengeWindowHours);
     }
-    
+
+    function setAggregator(address _aggregator) external onlyOwner {
+        require(_aggregator != address(0), "Invalid aggregator");
+        aggregator = _aggregator;
+    }
+
+    function setAccessPolicy(
+        string calldata variantId,
+        bool requireTicket,
+        uint256 minStakeRequired,
+        address ticketManager,
+        uint256 ticketTTL
+    ) external onlyOwner {
+        require(bytes(variantId).length > 0, "Variant ID required");
+        AccessPolicyConfig storage config = variantAccessPolicies[variantId];
+        config.requireTicket = requireTicket;
+        config.minStakeRequired = minStakeRequired;
+        config.ticketManager = ticketManager;
+        config.ticketTTL = ticketTTL;
+
+        emit AccessPolicyUpdated(variantId, requireTicket, minStakeRequired, ticketManager, ticketTTL);
+    }
+
+    function getAccessPolicy(string calldata variantId) external view returns (AccessPolicyConfig memory) {
+        return variantAccessPolicies[variantId];
+    }
+
+    function getTicketReceipt(bytes32 ticketId) external view returns (TicketReceipt memory) {
+        require(ticketReceipts[ticketId].ticketId != bytes32(0), "Ticket not found");
+        return ticketReceipts[ticketId];
+    }
+
+    function getAccountTicketIds(address requester) external view returns (bytes32[] memory) {
+        return accountTickets[requester];
+    }
+
+    function getVariantTicketIds(string calldata variantId) external view returns (bytes32[] memory) {
+        return variantTicketHistory[variantId];
+    }
+
+    function getChallengeReceipt(string calldata variantId) external view returns (ChallengeRecord memory) {
+        return activeChallenges[variantId];
+    }
+
+    function requestDecryptionTicket(string calldata variantId) external nonReentrant returns (bytes32) {
+        ModelVariant storage variant = variants[variantId];
+        require(bytes(variant.variantId).length > 0, "Variant not found");
+        require(
+            variant.status == ModelStatus.Approved || variant.status == ModelStatus.Finalized,
+            "Variant not accessible"
+        );
+
+        AccessPolicyConfig memory config = variantAccessPolicies[variantId];
+        require(config.requireTicket, "Ticket not required");
+        require(config.ticketManager != address(0), "Ticket manager missing");
+
+        if (config.minStakeRequired > 0) {
+            require(stakedBalances[msg.sender] >= config.minStakeRequired, "Stake threshold not met");
+        }
+
+        uint256 ttl = config.ticketTTL;
+        bytes32 ticketId = IAIVMTicketManager(config.ticketManager).issueTicket(msg.sender, variantId, ttl);
+        uint256 expiresAt = ttl == 0 ? 0 : block.timestamp + ttl;
+
+        TicketReceipt storage receipt = ticketReceipts[ticketId];
+        receipt.ticketId = ticketId;
+        receipt.requester = msg.sender;
+        receipt.variantId = variantId;
+        receipt.expiresAt = expiresAt;
+        receipt.requestedAt = block.timestamp;
+        receipt.ticketManager = config.ticketManager;
+
+        accountTickets[msg.sender].push(ticketId);
+        variantTicketHistory[variantId].push(ticketId);
+
+        emit DecryptionTicketRequested(variantId, msg.sender, ticketId, expiresAt, config.ticketManager);
+        return ticketId;
+    }
+ 
     /**
      * @notice Update treasury address (owner only)
      */
-    function setTreasury(address payable _treasury) external onlyOwner {
+    function treasury() external view returns (address payable) {
+        return payable(treasuryAddress);
+    }
+    
+    function setTreasury(address _treasury) external onlyOwner {
         require(_treasury != address(0), "Invalid treasury address");
-        treasury = _treasury;
+        treasuryAddress = _treasury;
     }
     
     /**
