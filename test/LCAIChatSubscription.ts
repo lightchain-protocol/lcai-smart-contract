@@ -19,12 +19,31 @@ describe("LCAIChatSubscription", function () {
   // ===== HELPER FUNCTIONS =====
 
   async function deploySubscriptionContract() {
+    // Deploy mock ERC20 token for payments
+    const paymentToken = await ethers.deployContract("Token");
+
+    // Deploy subscription contract with payment token
     const subscription = await ethers.deployContract("LCAIChatSubscription", [
+      await paymentToken.getAddress(),
       treasury.address,
       admin.address,
     ]);
 
-    return { subscription };
+    return { subscription, paymentToken };
+  }
+
+  async function setupTokensForUser(
+    paymentToken: any,
+    subscription: any,
+    user: any,
+    amount: bigint
+  ) {
+    // Transfer tokens from deployer to user
+    await paymentToken.connect(deployer).transfer(user.address, amount);
+
+    // User approves subscription contract to spend tokens
+    const subscriptionAddress = await subscription.getAddress();
+    await paymentToken.connect(user).approve(subscriptionAddress, amount);
   }
 
   async function getTimestamp(): Promise<bigint> {
@@ -35,7 +54,12 @@ describe("LCAIChatSubscription", function () {
   // ===== DEPLOYMENT TESTS =====
 
   it("Should deploy with correct initial state", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
+
+    // Check payment token
+    expect(await subscription.paymentToken()).to.equal(
+      await paymentToken.getAddress()
+    );
 
     // Check treasury
     expect(await subscription.treasury()).to.equal(treasury.address);
@@ -56,9 +80,24 @@ describe("LCAIChatSubscription", function () {
     expect(await subscription.paused()).to.equal(false);
   });
 
-  it("Should reject deployment with zero treasury address", async function () {
+  it("Should reject deployment with zero payment token address", async function () {
     await expect(
       ethers.deployContract("LCAIChatSubscription", [
+        ethers.ZeroAddress,
+        treasury.address,
+        admin.address,
+      ])
+    ).to.be.revertedWithCustomError(
+      await ethers.getContractFactory("LCAIChatSubscription"),
+      "InvalidAddress"
+    );
+  });
+
+  it("Should reject deployment with zero treasury address", async function () {
+    const paymentToken = await ethers.deployContract("Token");
+    await expect(
+      ethers.deployContract("LCAIChatSubscription", [
+        await paymentToken.getAddress(),
         ethers.ZeroAddress,
         admin.address,
       ])
@@ -69,8 +108,10 @@ describe("LCAIChatSubscription", function () {
   });
 
   it("Should reject deployment with zero admin address", async function () {
+    const paymentToken = await ethers.deployContract("Token");
     await expect(
       ethers.deployContract("LCAIChatSubscription", [
+        await paymentToken.getAddress(),
         treasury.address,
         ethers.ZeroAddress,
       ])
@@ -111,18 +152,20 @@ describe("LCAIChatSubscription", function () {
   // ===== SUBSCRIPTION PURCHASE TESTS =====
 
   it("Should allow user to purchase monthly tier 1 subscription", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
 
     const tier1Monthly = parseEther("2");
-    const treasuryBalanceBefore = await ethers.provider.getBalance(
+
+    // Setup tokens for user
+    await setupTokensForUser(paymentToken, subscription, user1, tier1Monthly);
+
+    const treasuryBalanceBefore = await paymentToken.balanceOf(
       treasury.address
     );
     const timestamp = await getTimestamp();
 
     await expect(
-      subscription
-        .connect(user1)
-        .subscribe(TIER_1, DURATION_MONTHLY, { value: tier1Monthly })
+      subscription.connect(user1).subscribe(TIER_1, DURATION_MONTHLY)
     )
       .to.emit(subscription, "SubscriptionPurchased")
       .withArgs(
@@ -134,9 +177,7 @@ describe("LCAIChatSubscription", function () {
       );
 
     // Check treasury received payment
-    const treasuryBalanceAfter = await ethers.provider.getBalance(
-      treasury.address
-    );
+    const treasuryBalanceAfter = await paymentToken.balanceOf(treasury.address);
     expect(treasuryBalanceAfter - treasuryBalanceBefore).to.equal(tier1Monthly);
 
     // Check subscription status
@@ -156,18 +197,20 @@ describe("LCAIChatSubscription", function () {
   });
 
   it("Should allow user to purchase yearly tier 2 subscription", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
 
     const tier2Yearly = parseEther("50");
-    const treasuryBalanceBefore = await ethers.provider.getBalance(
+
+    // Setup tokens for user
+    await setupTokensForUser(paymentToken, subscription, user1, tier2Yearly);
+
+    const treasuryBalanceBefore = await paymentToken.balanceOf(
       treasury.address
     );
     const timestamp = await getTimestamp();
 
     await expect(
-      subscription
-        .connect(user1)
-        .subscribe(TIER_2, DURATION_YEARLY, { value: tier2Yearly })
+      subscription.connect(user1).subscribe(TIER_2, DURATION_YEARLY)
     )
       .to.emit(subscription, "SubscriptionPurchased")
       .withArgs(
@@ -179,9 +222,7 @@ describe("LCAIChatSubscription", function () {
       );
 
     // Check treasury received payment
-    const treasuryBalanceAfter = await ethers.provider.getBalance(
-      treasury.address
-    );
+    const treasuryBalanceAfter = await paymentToken.balanceOf(treasury.address);
     expect(treasuryBalanceAfter - treasuryBalanceBefore).to.equal(tier2Yearly);
 
     // Check subscription status
@@ -198,14 +239,15 @@ describe("LCAIChatSubscription", function () {
   });
 
   it("Should allow user to purchase tier 3 subscription", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
 
     const tier3Monthly = parseEther("10");
 
+    // Setup tokens for user
+    await setupTokensForUser(paymentToken, subscription, user1, tier3Monthly);
+
     await expect(
-      subscription
-        .connect(user1)
-        .subscribe(TIER_3, DURATION_MONTHLY, { value: tier3Monthly })
+      subscription.connect(user1).subscribe(TIER_3, DURATION_MONTHLY)
     ).to.emit(subscription, "SubscriptionPurchased");
 
     expect(await subscription.hasActiveSubscription(user1.address)).to.equal(
@@ -217,41 +259,46 @@ describe("LCAIChatSubscription", function () {
   });
 
   it("Should reject subscription with incorrect payment amount", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
 
     const wrongAmount = parseEther("0.005"); // Less than tier 1 monthly
 
+    // Setup tokens for user with wrong amount
+    await setupTokensForUser(paymentToken, subscription, user1, wrongAmount);
+
     await expect(
-      subscription
-        .connect(user1)
-        .subscribe(TIER_1, DURATION_MONTHLY, { value: wrongAmount })
+      subscription.connect(user1).subscribe(TIER_1, DURATION_MONTHLY)
     ).to.be.revertedWithCustomError(subscription, "IncorrectPayment");
   });
 
   it("Should reject subscription with invalid tier", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
 
     const tier1Monthly = parseEther("2");
 
+    // Setup tokens for user
+    await setupTokensForUser(paymentToken, subscription, user1, tier1Monthly);
+
     await expect(
-      subscription
-        .connect(user1)
-        .subscribe(10, DURATION_MONTHLY, { value: tier1Monthly })
+      subscription.connect(user1).subscribe(10, DURATION_MONTHLY)
     ).to.be.revertedWithCustomError(subscription, "InvalidTier");
   });
 
   it("Should reject subscription with invalid duration", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
 
     const tier1Monthly = parseEther("2");
 
+    // Setup tokens for user
+    await setupTokensForUser(paymentToken, subscription, user1, tier1Monthly);
+
     await expect(
-      subscription.connect(user1).subscribe(TIER_1, 2, { value: tier1Monthly })
+      subscription.connect(user1).subscribe(TIER_1, 2)
     ).to.be.revertedWithCustomError(subscription, "InvalidDuration");
   });
 
   it("Should reject subscription to inactive plan", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
 
     // Admin deactivates tier 1
     await subscription.connect(admin).updatePlanPrice(
@@ -263,76 +310,92 @@ describe("LCAIChatSubscription", function () {
 
     const tier1Monthly = parseEther("2");
 
+    // Setup tokens for user
+    await setupTokensForUser(paymentToken, subscription, user1, tier1Monthly);
+
     await expect(
-      subscription
-        .connect(user1)
-        .subscribe(TIER_1, DURATION_MONTHLY, { value: tier1Monthly })
+      subscription.connect(user1).subscribe(TIER_1, DURATION_MONTHLY)
     ).to.be.revertedWithCustomError(subscription, "PlanNotActive");
   });
 
   it("Should reject subscription when paused", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
 
     // Admin pauses contract
     await subscription.connect(admin).pause();
 
     const tier1Monthly = parseEther("2");
 
+    // Setup tokens for user
+    await setupTokensForUser(paymentToken, subscription, user1, tier1Monthly);
+
     await expect(
-      subscription
-        .connect(user1)
-        .subscribe(TIER_1, DURATION_MONTHLY, { value: tier1Monthly })
+      subscription.connect(user1).subscribe(TIER_1, DURATION_MONTHLY)
     ).to.be.revertedWithCustomError(subscription, "EnforcedPause");
   });
 
   // ===== SUBSCRIPTION RENEWAL TESTS =====
 
   it("Should reject subscription renewal while still active", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
 
     const tier1Monthly = parseEther("2");
 
+    // Setup tokens for user (double amount for two subscription attempts)
+    await setupTokensForUser(
+      paymentToken,
+      subscription,
+      user1,
+      tier1Monthly * 2n
+    );
+
     // Purchase initial subscription
-    await subscription
-      .connect(user1)
-      .subscribe(TIER_1, DURATION_MONTHLY, { value: tier1Monthly });
+    await subscription.connect(user1).subscribe(TIER_1, DURATION_MONTHLY);
 
     // Try to renew subscription while still active (should fail)
     await expect(
-      subscription
-        .connect(user1)
-        .subscribe(TIER_1, DURATION_MONTHLY, { value: tier1Monthly })
+      subscription.connect(user1).subscribe(TIER_1, DURATION_MONTHLY)
     ).to.be.revertedWithCustomError(subscription, "HaveActiveSubscription");
   });
 
   it("Should reject switching tiers while subscription is active", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
 
     const tier1Monthly = parseEther("2");
     const tier2Monthly = parseEther("5");
 
+    // Setup tokens for user (enough for tier 1 + tier 2)
+    await setupTokensForUser(
+      paymentToken,
+      subscription,
+      user1,
+      tier1Monthly + tier2Monthly
+    );
+
     // Purchase tier 1
-    await subscription
-      .connect(user1)
-      .subscribe(TIER_1, DURATION_MONTHLY, { value: tier1Monthly });
+    await subscription.connect(user1).subscribe(TIER_1, DURATION_MONTHLY);
 
     // Try to switch to tier 2 while tier 1 is still active (should fail)
     await expect(
-      subscription
-        .connect(user1)
-        .subscribe(TIER_2, DURATION_MONTHLY, { value: tier2Monthly })
+      subscription.connect(user1).subscribe(TIER_2, DURATION_MONTHLY)
     ).to.be.revertedWithCustomError(subscription, "HaveActiveSubscription");
   });
 
   it("Should handle subscription after expiry", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
 
     const tier1Monthly = parseEther("2");
 
+    // Setup tokens for user (double amount for two subscriptions)
+    await setupTokensForUser(
+      paymentToken,
+      subscription,
+      user1,
+      tier1Monthly * 2n
+    );
+
     // Purchase subscription
-    await subscription
-      .connect(user1)
-      .subscribe(TIER_1, DURATION_MONTHLY, { value: tier1Monthly });
+    await subscription.connect(user1).subscribe(TIER_1, DURATION_MONTHLY);
 
     // Fast forward past expiry
     await networkHelpers.time.increase(31n * 24n * 60n * 60n); // 31 days
@@ -346,9 +409,7 @@ describe("LCAIChatSubscription", function () {
 
     // Renew after expiry should start fresh
     const timestamp = await getTimestamp();
-    await subscription
-      .connect(user1)
-      .subscribe(TIER_1, DURATION_MONTHLY, { value: tier1Monthly });
+    await subscription.connect(user1).subscribe(TIER_1, DURATION_MONTHLY);
 
     const [, newExpiry] = await subscription.getSubscription(user1.address);
     expect(newExpiry).to.be.closeTo(timestamp + MONTHLY_DURATION + 2n, 5n);
@@ -523,12 +584,14 @@ describe("LCAIChatSubscription", function () {
   // ===== VIEW FUNCTIONS TESTS =====
 
   it("Should return correct remaining time", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
 
     const tier1Monthly = parseEther("2");
-    await subscription
-      .connect(user1)
-      .subscribe(TIER_1, DURATION_MONTHLY, { value: tier1Monthly });
+
+    // Setup tokens for user
+    await setupTokensForUser(paymentToken, subscription, user1, tier1Monthly);
+
+    await subscription.connect(user1).subscribe(TIER_1, DURATION_MONTHLY);
 
     const remaining = await subscription.getRemainingTime(user1.address);
     expect(remaining).to.be.closeTo(MONTHLY_DURATION, 5n);
@@ -541,12 +604,14 @@ describe("LCAIChatSubscription", function () {
   });
 
   it("Should return zero remaining time for expired subscription", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
 
     const tier1Monthly = parseEther("2");
-    await subscription
-      .connect(user1)
-      .subscribe(TIER_1, DURATION_MONTHLY, { value: tier1Monthly });
+
+    // Setup tokens for user
+    await setupTokensForUser(paymentToken, subscription, user1, tier1Monthly);
+
+    await subscription.connect(user1).subscribe(TIER_1, DURATION_MONTHLY);
 
     // Fast forward past expiry
     await networkHelpers.time.increase(31n * 24n * 60n * 60n);
@@ -584,48 +649,78 @@ describe("LCAIChatSubscription", function () {
   });
 
   it("Should track total active subscribers correctly", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
 
     expect(await subscription.getTotalActiveSubscribers()).to.equal(0n);
 
+    // Setup tokens for user1
+    await setupTokensForUser(
+      paymentToken,
+      subscription,
+      user1,
+      parseEther("2")
+    );
+
     // User 1 subscribes
-    await subscription
-      .connect(user1)
-      .subscribe(TIER_1, DURATION_MONTHLY, { value: parseEther("2") });
+    await subscription.connect(user1).subscribe(TIER_1, DURATION_MONTHLY);
     expect(await subscription.getTotalActiveSubscribers()).to.equal(1n);
 
+    // Setup tokens for user2
+    await setupTokensForUser(
+      paymentToken,
+      subscription,
+      user2,
+      parseEther("5")
+    );
+
     // User 2 subscribes
-    await subscription
-      .connect(user2)
-      .subscribe(TIER_2, DURATION_MONTHLY, { value: parseEther("5") });
+    await subscription.connect(user2).subscribe(TIER_2, DURATION_MONTHLY);
     expect(await subscription.getTotalActiveSubscribers()).to.equal(2n);
 
+    // Setup tokens for user3
+    await setupTokensForUser(
+      paymentToken,
+      subscription,
+      user3,
+      parseEther("10")
+    );
+
     // User 3 subscribes
-    await subscription
-      .connect(user3)
-      .subscribe(TIER_3, DURATION_MONTHLY, { value: parseEther("10") });
+    await subscription.connect(user3).subscribe(TIER_3, DURATION_MONTHLY);
     expect(await subscription.getTotalActiveSubscribers()).to.equal(3n);
   });
 
   // ===== INTEGRATION TESTS =====
 
   it("Should handle multiple users with different tiers", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
 
-    // User 1: Tier 1 Monthly
-    await subscription
-      .connect(user1)
-      .subscribe(TIER_1, DURATION_MONTHLY, { value: parseEther("2") });
+    // Setup tokens for user1: Tier 1 Monthly
+    await setupTokensForUser(
+      paymentToken,
+      subscription,
+      user1,
+      parseEther("2")
+    );
+    await subscription.connect(user1).subscribe(TIER_1, DURATION_MONTHLY);
 
-    // User 2: Tier 2 Yearly
-    await subscription
-      .connect(user2)
-      .subscribe(TIER_2, DURATION_YEARLY, { value: parseEther("50") });
+    // Setup tokens for user2: Tier 2 Yearly
+    await setupTokensForUser(
+      paymentToken,
+      subscription,
+      user2,
+      parseEther("50")
+    );
+    await subscription.connect(user2).subscribe(TIER_2, DURATION_YEARLY);
 
-    // User 3: Tier 3 Monthly
-    await subscription
-      .connect(user3)
-      .subscribe(TIER_3, DURATION_MONTHLY, { value: parseEther("10") });
+    // Setup tokens for user3: Tier 3 Monthly
+    await setupTokensForUser(
+      paymentToken,
+      subscription,
+      user3,
+      parseEther("10")
+    );
+    await subscription.connect(user3).subscribe(TIER_3, DURATION_MONTHLY);
 
     // Check all subscriptions
     expect(await subscription.hasActiveSubscription(user1.address)).to.equal(
@@ -648,34 +743,54 @@ describe("LCAIChatSubscription", function () {
   });
 
   it("Should route all payments to treasury", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
 
-    const initialBalance = await ethers.provider.getBalance(treasury.address);
+    const initialBalance = await paymentToken.balanceOf(treasury.address);
 
-    // Multiple subscriptions
-    await subscription
-      .connect(user1)
-      .subscribe(TIER_1, DURATION_MONTHLY, { value: parseEther("2") });
-    await subscription
-      .connect(user2)
-      .subscribe(TIER_2, DURATION_YEARLY, { value: parseEther("50") });
-    await subscription
-      .connect(user3)
-      .subscribe(TIER_3, DURATION_MONTHLY, { value: parseEther("10") });
+    // Setup tokens for user1
+    await setupTokensForUser(
+      paymentToken,
+      subscription,
+      user1,
+      parseEther("2")
+    );
+    await subscription.connect(user1).subscribe(TIER_1, DURATION_MONTHLY);
 
-    const finalBalance = await ethers.provider.getBalance(treasury.address);
+    // Setup tokens for user2
+    await setupTokensForUser(
+      paymentToken,
+      subscription,
+      user2,
+      parseEther("50")
+    );
+    await subscription.connect(user2).subscribe(TIER_2, DURATION_YEARLY);
+
+    // Setup tokens for user3
+    await setupTokensForUser(
+      paymentToken,
+      subscription,
+      user3,
+      parseEther("10")
+    );
+    await subscription.connect(user3).subscribe(TIER_3, DURATION_MONTHLY);
+
+    const finalBalance = await paymentToken.balanceOf(treasury.address);
     const expectedTotal = parseEther("2") + parseEther("50") + parseEther("10");
 
     expect(finalBalance - initialBalance).to.equal(expectedTotal);
   });
 
   it("Should handle price updates and new subscriptions", async function () {
-    const { subscription } = await deploySubscriptionContract();
+    const { subscription, paymentToken } = await deploySubscriptionContract();
 
-    // User subscribes at old price
-    await subscription
-      .connect(user1)
-      .subscribe(TIER_1, DURATION_MONTHLY, { value: parseEther("2") });
+    // Setup tokens for user1 and subscribe at old price
+    await setupTokensForUser(
+      paymentToken,
+      subscription,
+      user1,
+      parseEther("2")
+    );
+    await subscription.connect(user1).subscribe(TIER_1, DURATION_MONTHLY);
 
     // Admin updates price
     const newPrice = parseEther("25");
@@ -683,25 +798,33 @@ describe("LCAIChatSubscription", function () {
       .connect(admin)
       .updatePlanPrice(TIER_1, newPrice, parseEther("205"), true);
 
+    // Setup tokens for user1 to try renewal (should fail because subscription is active)
+    await setupTokensForUser(paymentToken, subscription, user1, newPrice);
+
     // User 1 cannot renew while subscription is active
     await expect(
-      subscription
-        .connect(user1)
-        .subscribe(TIER_1, DURATION_MONTHLY, { value: newPrice })
+      subscription.connect(user1).subscribe(TIER_1, DURATION_MONTHLY)
     ).to.be.revertedWithCustomError(subscription, "HaveActiveSubscription");
+
+    // Setup tokens for user2 to subscribe at new price
+    await setupTokensForUser(paymentToken, subscription, user2, newPrice);
 
     // New user (user2) subscribes at new price
     await expect(
-      subscription
-        .connect(user2)
-        .subscribe(TIER_1, DURATION_MONTHLY, { value: newPrice })
+      subscription.connect(user2).subscribe(TIER_1, DURATION_MONTHLY)
     ).to.emit(subscription, "SubscriptionPurchased");
+
+    // Setup tokens for user3 with old price (should fail)
+    await setupTokensForUser(
+      paymentToken,
+      subscription,
+      user3,
+      parseEther("2")
+    );
 
     // Old price should fail for new subscriptions
     await expect(
-      subscription
-        .connect(user3)
-        .subscribe(TIER_1, DURATION_MONTHLY, { value: parseEther("2") })
+      subscription.connect(user3).subscribe(TIER_1, DURATION_MONTHLY)
     ).to.be.revertedWithCustomError(subscription, "IncorrectPayment");
   });
 
@@ -713,7 +836,7 @@ describe("LCAIChatSubscription", function () {
         to: await subscription.getAddress(),
         value: parseEther("1"),
       })
-    ).to.be.revertedWith("Use subscribe() function");
+    ).to.be.revertedWith("This contract uses ERC20 payments only");
   });
 
   it("Should allow multiple admins to manage the contract", async function () {

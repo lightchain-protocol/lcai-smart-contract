@@ -6,19 +6,17 @@ import {
     ReentrancyGuard
 } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {
-    SafeERC20
-} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
- * @title LCAIChatSubscription
+ * @title NativeLCAIChatSubscription
  * @notice Subscription management for LCAI Chat with tiered plans
- * @dev Supports monthly and yearly subscriptions across 3 tiers using ERC20 token payments
+ * @dev Supports monthly and yearly subscriptions across 3 tiers
  */
-contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
-    using SafeERC20 for IERC20;
-
+contract NativeLCAIChatSubscription is
+    AccessControl,
+    ReentrancyGuard,
+    Pausable
+{
     // ============================================================================
     // CONSTANTS & ROLES
     // ============================================================================
@@ -46,8 +44,8 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
 
     /// @notice Subscription plan pricing structure
     struct PlanPrice {
-        uint256 monthlyPrice; // Price in payment token (smallest unit) for 30 days
-        uint256 yearlyPrice; // Price in payment token (smallest unit) for 365 days
+        uint256 monthlyPrice; // Price in LCAI (wei) for 30 days
+        uint256 yearlyPrice; // Price in LCAI (wei) for 365 days
         bool isActive; // Whether this tier is currently available
     }
 
@@ -61,11 +59,8 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
     // STATE VARIABLES
     // ============================================================================
 
-    /// @notice ERC20 token used for subscription payments
-    IERC20 public paymentToken;
-
     /// @notice Treasury address where all subscription payments are sent
-    address public treasury;
+    address payable public treasury;
 
     /// @notice Mapping from tier to plan pricing
     mapping(uint256 => PlanPrice) public planPrices;
@@ -114,11 +109,6 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
         address indexed newTreasury
     );
 
-    event PaymentTokenUpdated(
-        address indexed oldToken,
-        address indexed newToken
-    );
-
     event AdminAdded(address indexed admin);
     event AdminRemoved(address indexed admin);
 
@@ -142,22 +132,13 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
 
     /**
      * @notice Initialize the subscription contract
-     * @param _paymentToken ERC20 token address for subscription payments
      * @param _treasury Treasury address to receive subscription payments
      * @param _defaultAdmin Default admin address
      */
-    constructor(
-        address _paymentToken,
-        address _treasury,
-        address _defaultAdmin
-    ) {
-        if (
-            _paymentToken == address(0) ||
-            _treasury == address(0) ||
-            _defaultAdmin == address(0)
-        ) revert InvalidAddress();
+    constructor(address payable _treasury, address _defaultAdmin) {
+        if (_treasury == address(0) || _defaultAdmin == address(0))
+            revert InvalidAddress();
 
-        paymentToken = IERC20(_paymentToken);
         treasury = _treasury;
 
         // Grant roles
@@ -165,22 +146,22 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
         _grantRole(ADMIN_ROLE, _defaultAdmin);
 
         // Initialize default pricing (can be updated by admin)
-        // Default prices (example values - adjust based on token decimals)
+        // Default prices (example values in wei - adjust as needed)
         planPrices[TIER_1] = PlanPrice({
-            monthlyPrice: 2 ether, // 2 tokens per month
-            yearlyPrice: 20 ether, // 20 tokens per year
+            monthlyPrice: 2 ether, // 2 LCAI per month
+            yearlyPrice: 20 ether, // 20 LCAI per year
             isActive: true
         });
 
         planPrices[TIER_2] = PlanPrice({
-            monthlyPrice: 5 ether, // 5 tokens per month
-            yearlyPrice: 50 ether, // 50 tokens per year
+            monthlyPrice: 5 ether, // 5 LCAI per month
+            yearlyPrice: 50 ether, // 50 LCAI per year
             isActive: true
         });
 
         planPrices[TIER_3] = PlanPrice({
-            monthlyPrice: 10 ether, // 10 tokens per month
-            yearlyPrice: 100 ether, // 100 tokens per year
+            monthlyPrice: 10 ether, // 10 LCAI per month
+            yearlyPrice: 100 ether, // 100 LCAI per year
             isActive: true
         });
 
@@ -196,12 +177,11 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
      * @param tier Subscription tier (0 = tier1, 1 = tier2, 2 = tier3)
      * @param duration Duration type (0 = monthly/30 days, 1 = yearly/365 days)
      * @dev Can only subscribe if no active subscription exists
-     * @dev User must approve this contract to spend payment tokens before calling
      */
     function subscribe(
         uint256 tier,
         uint256 duration
-    ) external whenNotPaused nonReentrant {
+    ) external payable whenNotPaused nonReentrant {
         if (tier > MAX_TIER) revert InvalidTier();
         if (duration > DURATION_YEARLY) revert InvalidDuration();
         if (treasury == address(0)) revert TreasuryNotSet();
@@ -220,9 +200,7 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
         uint256 price = duration == DURATION_MONTHLY
             ? plan.monthlyPrice
             : plan.yearlyPrice;
-
-        if (paymentToken.balanceOf(msg.sender) < price)
-            revert IncorrectPayment();
+        if (msg.value != price) revert IncorrectPayment();
 
         // Calculate subscription duration and expiry
         uint256 durationSeconds = duration == DURATION_MONTHLY
@@ -240,8 +218,9 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
         sub.tier = tier;
         sub.expiryTimestamp = expiryTimestamp;
 
-        // Transfer payment tokens from user to treasury
-        paymentToken.safeTransferFrom(msg.sender, treasury, price);
+        // Send payment to treasury
+        (bool success, ) = treasury.call{value: msg.value}("");
+        if (!success) revert TransferFailed();
 
         emit SubscriptionPurchased(
             msg.sender,
@@ -301,8 +280,8 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
     /**
      * @notice Update plan pricing
      * @param tier Tier to update
-     * @param monthlyPrice New monthly price in payment token (smallest unit)
-     * @param yearlyPrice New yearly price in payment token (smallest unit)
+     * @param monthlyPrice New monthly price in LCAI (wei)
+     * @param yearlyPrice New yearly price in LCAI (wei)
      * @param isActive Whether tier should be active
      */
     function updatePlanPrice(
@@ -328,26 +307,12 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
      * @param newTreasury New treasury address
      */
     function updateTreasury(
-        address newTreasury
+        address payable newTreasury
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (newTreasury == address(0)) revert InvalidAddress();
         address oldTreasury = treasury;
         treasury = newTreasury;
         emit TreasuryUpdated(oldTreasury, newTreasury);
-    }
-
-    /**
-     * @notice Update payment token address
-     * @param newPaymentToken New payment token address
-     * @dev Use with caution - changing token may affect existing subscriptions
-     */
-    function updatePaymentToken(
-        address newPaymentToken
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newPaymentToken == address(0)) revert InvalidAddress();
-        address oldToken = address(paymentToken);
-        paymentToken = IERC20(newPaymentToken);
-        emit PaymentTokenUpdated(oldToken, newPaymentToken);
     }
 
     /**
@@ -431,14 +396,14 @@ contract LCAIChatSubscription is AccessControl, ReentrancyGuard, Pausable {
     }
 
     // ============================================================================
-    // RECEIVE FUNCTION (blocked - this contract uses ERC20 payments)
+    // RECEIVE FUNCTION (blocked - only accept through subscribe)
     // ============================================================================
 
     /**
      * @notice Reject direct ETH transfers
-     * @dev This contract only accepts ERC20 token payments via subscribe() function
+     * @dev Users must use subscribe() function
      */
     receive() external payable {
-        revert("This contract uses ERC20 payments only");
+        revert("Use subscribe() function");
     }
 }
