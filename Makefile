@@ -1,8 +1,8 @@
-# LCAI DAO Smart Contract Makefile
+a# LCAI DAO Smart Contract Makefile
 # =================================
 
 # Default network
-NETWORK ?= lcaiTestnet
+NETWORK ?= lcai_testnet_v2
 
 # Colors for output
 GREEN = \033[0;32m
