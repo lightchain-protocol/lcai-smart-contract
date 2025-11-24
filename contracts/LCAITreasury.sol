@@ -14,6 +14,9 @@ import {
 contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
     using SafeERC20 for IERC20;
 
+    string public constant version = "1.0.0";
+    event SpecVersionAnnounced(string version);
+
     address public admin;
     address public timelock;
 
@@ -68,6 +71,7 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
 
     constructor(address _timelock, address _admin) Ownable(_timelock) {
         _updateAdmin(_admin);
+        emit SpecVersionAnnounced(version);
     }
 
     function transferETH(

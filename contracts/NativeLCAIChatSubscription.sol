@@ -21,6 +21,11 @@ contract NativeLCAIChatSubscription is
     // CONSTANTS & ROLES
     // ============================================================================
 
+    /// @notice Contract version
+    string public constant version = "1.0.0";
+
+    event SpecVersionAnnounced(string version);
+
     /// @notice Admin role for managing subscriptions and pricing
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
@@ -166,6 +171,7 @@ contract NativeLCAIChatSubscription is
         });
 
         emit TreasuryUpdated(address(0), _treasury);
+        emit SpecVersionAnnounced(version);
     }
 
     // ============================================================================

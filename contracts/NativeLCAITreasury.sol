@@ -8,6 +8,9 @@ import {
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 contract NativeLCAITreasury is ReentrancyGuard, Pausable, Ownable {
+    string public constant version = "1.0.0";
+    event SpecVersionAnnounced(string version);
+
     address public admin;
 
     uint256 public spent;
@@ -51,6 +54,7 @@ contract NativeLCAITreasury is ReentrancyGuard, Pausable, Ownable {
 
     constructor(address _timelock, address _admin) Ownable(_timelock) {
         _updateAdmin(_admin);
+        emit SpecVersionAnnounced(version);
     }
 
     function transfer(

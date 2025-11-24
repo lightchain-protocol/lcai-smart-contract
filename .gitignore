@@ -27,6 +27,9 @@
 .env.production
 .env.*.local
 
+# Development private keys (auto-generated)
+.dev-keys/
+
 
 # OS-specific files
 .DS_Store
