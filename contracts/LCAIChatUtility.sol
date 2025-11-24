@@ -111,9 +111,43 @@ contract LCAIChatUtility is Ownable, ReentrancyGuard, Pausable {
     /// @notice Mapping from user address to their index
     mapping(address => uint256) public userAddressToIndex;
     
-    // Prepaid Message Credits
+    // Prepaid Message Credits (deprecated - migrating to subscriptions)
     /// @notice Prepaid message credits per user (number of messages available)
     mapping(address => uint256) private _prepaidMessageCredits;
+    
+    // Subscription System
+    /// @notice Subscription plan tier details
+    struct SubscriptionPlan {
+        uint256 monthlyPriceUSD;   // Monthly price in USD (scaled by 100, e.g., 2500 = $25.00)
+        uint256 yearlyPriceUSD;    // Yearly price in USD (scaled by 100, 20% discount from monthly*12)
+        uint256 tokenLimit;        // Max tokens/chats per month (0 = unlimited)
+        string modelAccess;        // Model tier: "base", "pro", "premium"
+        bool isActive;
+    }
+    
+    /// @notice User subscription data
+    struct UserSubscription {
+        uint256 expiryTimestamp;   // When subscription expires (0 = no subscription)
+        uint256 planTier;          // Plan tier index (0=base, 1=pro, 2=premium)
+        uint256 usageCount;        // Usage this period (for token limits)
+        uint256 lastResetTimestamp; // Last usage counter reset
+        bool isActive;
+    }
+    
+    /// @notice Subscription plans by tier (0=base $25/mo, 1=pro, 2=premium)
+    mapping(uint256 => SubscriptionPlan) public subscriptionPlans;
+    
+    /// @notice User subscriptions
+    mapping(address => UserSubscription) public userSubscriptions;
+    
+    /// @notice Treasury address for subscription payments (LCAI goes here)
+    address payable public treasuryAddress;
+    
+    /// @notice LCAI token contract for price oracle integration (fetch live price from DEX)
+    address public lcaiTokenAddress;
+    
+    /// @notice DEX price oracle address (for USD → LCAI conversion)
+    address public priceOracleAddress;
     
     // Access Control for Rewards
     /// @notice Authorized addresses that can issue rewards (e.g., backend service)
@@ -153,9 +187,17 @@ contract LCAIChatUtility is Ownable, ReentrancyGuard, Pausable {
     // Configuration Events
     event ChatFeeUpdated(uint256 oldFee, uint256 newFee);
     
-    // Prepaid Events
+    // Prepaid Events (deprecated)
     event MessagesPrepaid(address indexed user, uint256 count, uint256 totalCredits);
     event PrepaidMessageConsumed(address indexed user, uint256 remainingCredits);
+    
+    // Subscription Events
+    event SubscriptionPurchased(address indexed user, uint256 planTier, uint256 duration, uint256 expiryTimestamp, uint256 lcaiAmount);
+    event SubscriptionPlanUpdated(uint256 tier, uint256 monthlyPriceUSD, uint256 yearlyPriceUSD, uint256 tokenLimit, string modelAccess);
+    event TreasuryAddressUpdated(address indexed oldTreasury, address indexed newTreasury);
+    event PriceOracleUpdated(address indexed oldOracle, address indexed newOracle);
+    event SubscriptionExpired(address indexed user, uint256 expiredAt);
+    event UsageLimitReached(address indexed user, uint256 limit);
     
     // Authorization Events
     event RewardIssuerAuthorized(address indexed issuer);
@@ -976,6 +1018,176 @@ contract LCAIChatUtility is Ownable, ReentrancyGuard, Pausable {
         if (isChatReward) {
             stats.averageQuality = (stats.averageQuality * (stats.totalInteractions - 1) + 800) / stats.totalInteractions;
         }
+    }
+    
+    // ============================================================================
+    // SUBSCRIPTION FUNCTIONS
+    // ============================================================================
+    
+    /**
+     * @notice Subscribe to a plan tier (monthly or yearly)
+     * @param planTier Plan tier (0=base $25/mo, 1=pro, 2=premium)
+     * @param duration 0 = monthly (30 days), 1 = yearly (365 days, 20% discount)
+     * @dev Payment is in LCAI tokens (msg.value); price determined by USD amount + live DEX price
+     * @dev Future: integrate price oracle to fetch live LCAI/USD price from DEX
+     */
+    function subscribePlan(uint256 planTier, uint256 duration) external payable whenNotPaused nonReentrant {
+        SubscriptionPlan storage plan = subscriptionPlans[planTier];
+        require(plan.isActive, "Plan tier not active");
+        require(duration == 0 || duration == 1, "Invalid duration (0=monthly, 1=yearly)");
+        require(treasuryAddress != address(0), "Treasury address not set");
+        
+        // Get price in USD (scaled by 100)
+        uint256 priceUSD = duration == 0 ? plan.monthlyPriceUSD : plan.yearlyPriceUSD;
+        
+        // TODO: Fetch live LCAI price from DEX oracle and convert USD → LCAI amount
+        // For now, accept msg.value as LCAI amount (hardcoded conversion until oracle integrated)
+        // Future: uint256 lcaiRequired = convertUSDtoLCAI(priceUSD);
+        // Future: require(msg.value >= lcaiRequired, "Insufficient LCAI for subscription");
+        
+        require(msg.value > 0, "Payment required");
+        
+        uint256 durationSeconds = duration == 0 ? 30 days : 365 days;
+        uint256 newExpiry = block.timestamp + durationSeconds;
+        
+        // Extend existing subscription or create new one
+        UserSubscription storage sub = userSubscriptions[msg.sender];
+        if (sub.expiryTimestamp > block.timestamp && sub.planTier == planTier) {
+            // Extend from current expiry for same tier
+            newExpiry = sub.expiryTimestamp + durationSeconds;
+        }
+        
+        sub.expiryTimestamp = newExpiry;
+        sub.planTier = planTier;
+        sub.isActive = true;
+        sub.usageCount = 0;
+        sub.lastResetTimestamp = block.timestamp;
+        
+        // Route payment to treasury (LCAI tokens go directly to treasury)
+        (bool success, ) = treasuryAddress.call{value: msg.value}("");
+        require(success, "Treasury payment failed");
+        
+        emit SubscriptionPurchased(msg.sender, planTier, duration, newExpiry, msg.value);
+    }
+    
+    /**
+     * @notice Check if an address has an active subscription
+     * @param user User address to check
+     * @return True if subscription is active and not expired
+     */
+    function hasActiveSubscription(address user) external view returns (bool) {
+        UserSubscription storage sub = userSubscriptions[user];
+        return sub.isActive && sub.expiryTimestamp > block.timestamp;
+    }
+    
+    /**
+     * @notice Get subscription expiry timestamp for a user
+     * @param user User address
+     * @return Expiry timestamp (0 if no subscription)
+     */
+    function getSubscriptionExpiry(address user) external view returns (uint256) {
+        return userSubscriptions[user].expiryTimestamp;
+    }
+    
+    /**
+     * @notice Update subscription plan tier (DAO/Owner only)
+     * @param tier Plan tier (0=base, 1=pro, 2=premium)
+     * @param monthlyPriceUSD Monthly price in USD (scaled by 100, e.g., 2500 = $25.00)
+     * @param yearlyPriceUSD Yearly price in USD (scaled by 100, typically monthly*12*0.8 for 20% discount)
+     * @param tokenLimit Max tokens/chats per month (0 = unlimited)
+     * @param modelAccess Model tier: "base", "pro", "premium"
+     */
+    function updateSubscriptionPlan(
+        uint256 tier,
+        uint256 monthlyPriceUSD,
+        uint256 yearlyPriceUSD,
+        uint256 tokenLimit,
+        string calldata modelAccess
+    ) external onlyOwner {
+        require(monthlyPriceUSD > 0, "Monthly price must be > 0");
+        require(yearlyPriceUSD > 0, "Yearly price must be > 0");
+        require(tier < 10, "Tier must be < 10");
+        
+        SubscriptionPlan storage plan = subscriptionPlans[tier];
+        plan.monthlyPriceUSD = monthlyPriceUSD;
+        plan.yearlyPriceUSD = yearlyPriceUSD;
+        plan.tokenLimit = tokenLimit;
+        plan.modelAccess = modelAccess;
+        plan.isActive = true;
+        
+        emit SubscriptionPlanUpdated(tier, monthlyPriceUSD, yearlyPriceUSD, tokenLimit, modelAccess);
+    }
+    
+    /**
+     * @notice Set treasury address for subscription payments
+     * @param _treasuryAddress New treasury address
+     */
+    function setTreasuryAddress(address payable _treasuryAddress) external onlyOwner {
+        require(_treasuryAddress != address(0), "Invalid treasury address");
+        address old = treasuryAddress;
+        treasuryAddress = _treasuryAddress;
+        emit TreasuryAddressUpdated(old, _treasuryAddress);
+    }
+    
+    /**
+     * @notice Set price oracle address for USD → LCAI conversion
+     * @param _oracleAddress Price oracle contract address
+     */
+    function setPriceOracle(address _oracleAddress) external onlyOwner {
+        require(_oracleAddress != address(0), "Invalid oracle address");
+        address old = priceOracleAddress;
+        priceOracleAddress = _oracleAddress;
+        emit PriceOracleUpdated(old, _oracleAddress);
+    }
+    
+    /**
+     * @notice Get subscription plan details for a tier
+     * @param tier Plan tier to query
+     * @return monthlyPriceUSD Monthly price in USD (scaled by 100)
+     * @return yearlyPriceUSD Yearly price in USD (scaled by 100)
+     * @return tokenLimit Max tokens per month
+     * @return modelAccess Model tier string
+     * @return isActive Whether plan is active
+     */
+    function getSubscriptionPlan(uint256 tier) external view returns (
+        uint256 monthlyPriceUSD,
+        uint256 yearlyPriceUSD,
+        uint256 tokenLimit,
+        string memory modelAccess,
+        bool isActive
+    ) {
+        SubscriptionPlan storage plan = subscriptionPlans[tier];
+        return (
+            plan.monthlyPriceUSD,
+            plan.yearlyPriceUSD,
+            plan.tokenLimit,
+            plan.modelAccess,
+            plan.isActive
+        );
+    }
+    
+    /**
+     * @notice Check if user has reached usage limit for current subscription period
+     * @param user User address to check
+     * @return True if limit reached (only for plans with tokenLimit > 0)
+     */
+    function hasReachedUsageLimit(address user) external view returns (bool) {
+        UserSubscription storage sub = userSubscriptions[user];
+        if (!sub.isActive || sub.expiryTimestamp <= block.timestamp) {
+            return true; // Expired or inactive = limit reached
+        }
+        
+        SubscriptionPlan storage plan = subscriptionPlans[sub.planTier];
+        if (plan.tokenLimit == 0) {
+            return false; // Unlimited plan
+        }
+        
+        // Reset usage counter if period elapsed (monthly reset)
+        if (block.timestamp > sub.lastResetTimestamp + 30 days) {
+            return false; // New period, not reached
+        }
+        
+        return sub.usageCount >= plan.tokenLimit;
     }
     
     // ============================================================================
