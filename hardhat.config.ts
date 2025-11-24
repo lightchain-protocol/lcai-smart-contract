@@ -4,11 +4,20 @@ import type { HardhatUserConfig } from "hardhat/config";
 import hardhatToolboxMochaEthersPlugin from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
 import dotenv from "dotenv";
 import hardhatVerify from "@nomicfoundation/hardhat-verify";
+import { getPrivateKey } from "./scripts/setup-dev-keys.js";
 
 // Load environment variables
 dotenv.config();
+
+// Get private keys with auto-generation fallback
+const OWNER_WALLET_PRIVATE_KEY = getPrivateKey(
+  "OWNER_WALLET_PRIVATE_KEY",
+  "owner"
+);
+const SEPOLIA_PRIVATE_KEY = getPrivateKey("SEPOLIA_PRIVATE_KEY", "sepolia");
+
+// Load other environment variables
 const {
-  OWNER_WALLET_PRIVATE_KEY,
   LCAI_TESTNET_RPC_URL,
   LCAI_TESTNET_V2_RPC_URL,
   LCAI_TESTNET_V2_CHAIN_ID,
@@ -16,7 +25,6 @@ const {
   LCAI_BLOCKSCOUT_BROWSER_URL,
   LCAI_BLOCKSCOUT_API_URL,
   SEPOLIA_RPC_URL,
-  SEPOLIA_PRIVATE_KEY,
   MAINNET_RPC_URL,
   MAINNET_PRIVATE_KEY,
 } = process.env;
@@ -85,7 +93,7 @@ const config: HardhatUserConfig = {
         name: "Lightchain Testnet Explorer",
         url: lcaiBlockscoutBrowserUrl,
       },
-      accounts: OWNER_WALLET_PRIVATE_KEY ? [OWNER_WALLET_PRIVATE_KEY] : [],
+      accounts: [OWNER_WALLET_PRIVATE_KEY],
     },
     lcai_testnet_v2: {
       name: "Lightchain Testnet v2",
@@ -99,7 +107,7 @@ const config: HardhatUserConfig = {
         name: LCAI_BLOCKSCOUT_NAME || "Lightchain v2 Blockscout",
         url: lcaiBlockscoutBrowserUrl,
       },
-      accounts: OWNER_WALLET_PRIVATE_KEY ? [OWNER_WALLET_PRIVATE_KEY] : [],
+      accounts: [OWNER_WALLET_PRIVATE_KEY],
     },
     sepolia: {
       name: "Sepolia Testnet",
@@ -111,7 +119,7 @@ const config: HardhatUserConfig = {
         name: "Sepolia Etherscan",
         url: "https://sepolia.etherscan.io",
       },
-      accounts: SEPOLIA_PRIVATE_KEY ? [SEPOLIA_PRIVATE_KEY] : [],
+      accounts: [SEPOLIA_PRIVATE_KEY],
     },
     mainnet: {
       name: "Ethereum Mainnet",
@@ -127,10 +135,10 @@ const config: HardhatUserConfig = {
     },
   },
   chainDescriptors: {
-     504: {
-       name: "Lightchain Testnet",
-       blockExplorers: {
-         blockscout: {
+    504: {
+      name: "Lightchain Testnet",
+      blockExplorers: {
+        blockscout: {
           name: LCAI_BLOCKSCOUT_NAME || "Lightchain Testnet Explorer",
           url: lcaiBlockscoutBrowserUrl,
           apiUrl: lcaiBlockscoutApiUrl,

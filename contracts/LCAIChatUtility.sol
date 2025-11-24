@@ -13,6 +13,8 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
  * @dev Replaces the Diamond proxy pattern with a simpler, more maintainable architecture
  */
 contract LCAIChatUtility is Ownable, ReentrancyGuard, Pausable {
+    string public constant version = "1.0.0";
+    event SpecVersionAnnounced(string version);
     
     // ============================================================================
     // CONSTANTS
@@ -234,6 +236,7 @@ contract LCAIChatUtility is Ownable, ReentrancyGuard, Pausable {
         // Authorize deployer to issue rewards initially
         authorizedRewardIssuers[msg.sender] = true;
         emit RewardIssuerAuthorized(msg.sender);
+        emit SpecVersionAnnounced(version);
     }
     
     // ============================================================================
