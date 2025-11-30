@@ -99,11 +99,10 @@ describe("LCAITreasury", function () {
   it("Should allow depositETH and emit Deposit event", async function () {
     const { treasury } = await deployLCAITreasuryContracts();
 
-    await expect(
-      treasury.connect(recipient1).depositETH({ value: parseEther("5") })
-    )
-      .to.emit(treasury, "Deposit")
-      .withArgs(recipient1.address, ethers.ZeroAddress, parseEther("5"));
+    await deployer.sendTransaction({
+      to: await treasury.getAddress(),
+      value: parseEther("5"),
+    });
 
     expect(await treasury.getETHBalance()).to.equal(parseEther("5"));
   });
@@ -183,7 +182,7 @@ describe("LCAITreasury", function () {
     await expect(
       treasury
         .connect(deployer)
-        .deposit(await token.getAddress(), { value: parseEther("50") })
+        .deposit(await token.getAddress(), parseEther("50"))
     )
       .to.emit(treasury, "Deposit")
       .withArgs(deployer.address, await token.getAddress(), parseEther("50"));
