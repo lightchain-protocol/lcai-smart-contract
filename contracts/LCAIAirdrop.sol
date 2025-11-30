@@ -28,6 +28,7 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
 
     ILCAIPresale public lcaiPresale;
     address public token;
+    address payable public treasury;
 
     uint256 public claimFee; // Fee in ETH required to claim
     uint256 public totalFeesCollected;
@@ -45,20 +46,32 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
     event TokensWithdrawn(address indexed to, uint256 amount);
     event ClaimFeeUpdated(uint256 oldFee, uint256 newFee);
     event FeesWithdrawn(address indexed to, uint256 amount);
+    event TreasuryUpdated(
+        address indexed oldTreasury,
+        address indexed newTreasury
+    );
 
     modifier notClaimed() {
         require(!claimed[msg.sender], "LCAIAirdrop: Already claimed");
         _;
     }
 
-    constructor(address _lcaiPresale) Ownable(msg.sender) {
+    constructor(
+        address _lcaiPresale,
+        address payable _treasury
+    ) Ownable(msg.sender) {
         require(
             _lcaiPresale != address(0),
             "LCAIAirdrop: Invalid presale address"
         );
+        require(
+            _treasury != address(0),
+            "LCAIAirdrop: Invalid treasury address"
+        );
         lcaiPresale = ILCAIPresale(_lcaiPresale);
         token = lcaiPresale.saleToken();
         require(token != address(0), "LCAIAirdrop: Invalid token address");
+        treasury = _treasury;
     }
 
     function claim() external payable nonReentrant whenNotPaused notClaimed {
@@ -77,6 +90,12 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
         claimedAmount[msg.sender] = rewardAmount;
         totalClaimedAmount += rewardAmount;
         totalFeesCollected += claimFee;
+
+        // Transfer claim fee to treasury
+        if (claimFee > 0) {
+            (bool success, ) = treasury.call{value: claimFee}("");
+            require(success, "LCAIAirdrop: Fee transfer to treasury failed");
+        }
 
         IERC20(token).safeTransfer(msg.sender, rewardAmount);
 
@@ -119,6 +138,16 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
         uint256 oldFee = claimFee;
         claimFee = _claimFee;
         emit ClaimFeeUpdated(oldFee, _claimFee);
+    }
+
+    function setTreasury(address payable _treasury) external onlyOwner {
+        require(
+            _treasury != address(0),
+            "LCAIAirdrop: Invalid treasury address"
+        );
+        address oldTreasury = treasury;
+        treasury = _treasury;
+        emit TreasuryUpdated(oldTreasury, _treasury);
     }
 
     function withdrawFees(
