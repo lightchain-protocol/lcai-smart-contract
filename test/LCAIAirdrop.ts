@@ -3,7 +3,7 @@ import { network } from "hardhat";
 import { parseEther } from "ethers";
 
 const { ethers } = await network.connect();
-const [owner, buyer1, buyer2, buyer3] = await ethers.getSigners();
+const [owner, buyer1, buyer2, buyer3, treasury] = await ethers.getSigners();
 
 describe("LCAIAirdrop", function () {
   // ===== HELPER FUNCTIONS =====
@@ -64,6 +64,7 @@ describe("LCAIAirdrop", function () {
     // Deploy airdrop contract
     const airdrop = await ethers.deployContract("LCAIAirdrop", [
       await presale.getAddress(),
+      treasury.address,
     ]);
 
     // Whitelist airdrop contract for token transfers
@@ -110,6 +111,12 @@ describe("LCAIAirdrop", function () {
       expect(await airdrop.token()).to.equal(await token.getAddress());
     });
 
+    it("Should set the treasury address correctly", async function () {
+      const { airdrop } = await deployFixture();
+
+      expect(await airdrop.treasury()).to.equal(treasury.address);
+    });
+
     it("Should initialize with correct REWARD_PERCENTAGE", async function () {
       const { airdrop } = await deployFixture();
 
@@ -118,8 +125,25 @@ describe("LCAIAirdrop", function () {
 
     it("Should revert if presale address is zero", async function () {
       await expect(
-        ethers.deployContract("LCAIAirdrop", [ethers.ZeroAddress])
+        ethers.deployContract("LCAIAirdrop", [
+          ethers.ZeroAddress,
+          treasury.address,
+        ])
       ).to.be.revertedWith("LCAIAirdrop: Invalid presale address");
+    });
+
+    it("Should revert if treasury address is zero", async function () {
+      const presale = await ethers.deployContract("LCAIPresale", [
+        owner.address,
+        owner.address,
+      ]);
+
+      await expect(
+        ethers.deployContract("LCAIAirdrop", [
+          await presale.getAddress(),
+          ethers.ZeroAddress,
+        ])
+      ).to.be.revertedWith("LCAIAirdrop: Invalid treasury address");
     });
 
     it("Should not be paused initially", async function () {
@@ -255,22 +279,22 @@ describe("LCAIAirdrop", function () {
       ).to.be.revertedWith("LCAIAirdrop: Insufficient claim fee");
     });
 
-    it("Should collect fees correctly", async function () {
+    it("Should collect fees correctly and send to treasury", async function () {
       const { airdrop, claimFee } = await deployFixture();
 
-      const contractBalanceBefore = await ethers.provider.getBalance(
-        await airdrop.getAddress()
+      const treasuryBalanceBefore = await ethers.provider.getBalance(
+        treasury.address
       );
 
       await airdrop.connect(buyer1).claim({
         value: claimFee,
       });
 
-      const contractBalanceAfter = await ethers.provider.getBalance(
-        await airdrop.getAddress()
+      const treasuryBalanceAfter = await ethers.provider.getBalance(
+        treasury.address
       );
 
-      expect(contractBalanceAfter - contractBalanceBefore).to.equal(claimFee);
+      expect(treasuryBalanceAfter - treasuryBalanceBefore).to.equal(claimFee);
       expect(await airdrop.totalFeesCollected()).to.equal(claimFee);
     });
 
@@ -527,22 +551,88 @@ describe("LCAIAirdrop", function () {
     });
   });
 
+  // ===== TREASURY MANAGEMENT TESTS =====
+
+  describe("Treasury Management", function () {
+    it("Should allow owner to set new treasury address", async function () {
+      const { airdrop } = await deployFixture();
+
+      const newTreasury = buyer3.address;
+      await airdrop.setTreasury(newTreasury);
+
+      expect(await airdrop.treasury()).to.equal(newTreasury);
+    });
+
+    it("Should emit TreasuryUpdated event", async function () {
+      const { airdrop } = await deployFixture();
+
+      const newTreasury = buyer3.address;
+      const tx = await airdrop.setTreasury(newTreasury);
+      const receipt = await tx.wait();
+
+      expect(receipt!.logs.length).to.be.greaterThan(0);
+    });
+
+    it("Should revert if non-owner tries to set treasury", async function () {
+      const { airdrop } = await deployFixture();
+
+      await expect(
+        airdrop.connect(buyer1).setTreasury(buyer3.address)
+      ).to.be.revertedWithCustomError(airdrop, "OwnableUnauthorizedAccount");
+    });
+
+    it("Should revert if new treasury address is zero", async function () {
+      const { airdrop } = await deployFixture();
+
+      await expect(
+        airdrop.setTreasury(ethers.ZeroAddress)
+      ).to.be.revertedWith("LCAIAirdrop: Invalid treasury address");
+    });
+
+    it("Should send fees to new treasury after update", async function () {
+      const { airdrop, claimFee } = await deployFixture();
+
+      // Change treasury to buyer3
+      const newTreasury = buyer3.address;
+      await airdrop.setTreasury(newTreasury);
+
+      const newTreasuryBalanceBefore = await ethers.provider.getBalance(
+        newTreasury
+      );
+
+      // buyer2 claims (buyer1 already claimed in previous tests in this context)
+      await airdrop.connect(buyer2).claim({
+        value: claimFee,
+      });
+
+      const newTreasuryBalanceAfter = await ethers.provider.getBalance(
+        newTreasury
+      );
+
+      expect(newTreasuryBalanceAfter - newTreasuryBalanceBefore).to.equal(
+        claimFee
+      );
+    });
+  });
+
   // ===== FEE WITHDRAWAL TESTS =====
 
   describe("Fee Withdrawal", function () {
-    it("Should allow owner to withdraw fees", async function () {
-      const { airdrop, claimFee } = await deployFixture();
+    it("Should allow owner to withdraw ETH sent directly to contract", async function () {
+      const { airdrop } = await deployFixture();
 
-      // First, collect some fees
-      await airdrop.connect(buyer1).claim({
-        value: claimFee,
+      // Send ETH directly to the contract via receive function
+      const sendAmount = parseEther("1");
+      await owner.sendTransaction({
+        to: await airdrop.getAddress(),
+        value: sendAmount,
       });
 
       const ownerBalanceBefore = await ethers.provider.getBalance(
         owner.address
       );
 
-      const withdrawAmount = claimFee;
+      const withdrawAmount = sendAmount;
       const tx = await airdrop.withdrawFees(owner.address, withdrawAmount);
 
       const receipt = await tx.wait();
@@ -556,27 +646,34 @@ describe("LCAIAirdrop", function () {
     });
 
     it("Should emit FeesWithdrawn event", async function () {
-      const { airdrop, claimFee } = await deployFixture();
+      const { airdrop } = await deployFixture();
 
-      await airdrop.connect(buyer1).claim({
-        value: claimFee,
+      // Send ETH directly to the contract
+      const sendAmount = parseEther("0.5");
+      await owner.sendTransaction({
+        to: await airdrop.getAddress(),
+        value: sendAmount,
       });
 
-      const tx = await airdrop.withdrawFees(owner.address, claimFee);
+      const tx = await airdrop.withdrawFees(owner.address, sendAmount);
       const receipt = await tx.wait();
 
       expect(receipt!.logs.length).to.be.greaterThan(0);
     });
 
-    it("Should allow owner to withdraw all fees", async function () {
-      const { airdrop, claimFee } = await deployFixture();
+    it("Should allow owner to withdraw all ETH from contract", async function () {
+      const { airdrop } = await deployFixture();
 
-      // Collect fees from multiple claims
-      await airdrop.connect(buyer1).claim({
-        value: claimFee,
+      // Send ETH directly to the contract multiple times
+      const sendAmount1 = parseEther("0.5");
+      const sendAmount2 = parseEther("0.3");
+      await owner.sendTransaction({
+        to: await airdrop.getAddress(),
+        value: sendAmount1,
       });
-      await airdrop.connect(buyer2).claim({
-        value: claimFee,
+      await owner.sendTransaction({
+        to: await airdrop.getAddress(),
+        value: sendAmount2,
       });
 
       const contractBalance = await ethers.provider.getBalance(
