@@ -354,17 +354,42 @@ contract LCAIChatSubscription is ReentrancyGuard, Pausable, Ownable {
     }
 
     /**
-     * @notice Update payment token address
+     * @notice Update payment token address and all plan prices atomically
      * @param newPaymentToken New payment token address
-     * @dev Use with caution - changing token may affect existing subscriptions
+     * @param monthlyPrices Array of monthly prices for [tier1, tier2, tier3]
+     * @param yearlyPrices Array of yearly prices for [tier1, tier2, tier3]
+     * @dev Updates token and all tier prices in single transaction to prevent price misalignment
      */
     function updatePaymentToken(
-        address newPaymentToken
+        address newPaymentToken,
+        uint256[3] calldata monthlyPrices,
+        uint256[3] calldata yearlyPrices
     ) external onlyOwner {
         if (newPaymentToken == address(0)) revert InvalidAddress();
+
+        // Validate all prices are non-zero
+        for (uint256 i = 0; i <= MAX_TIER; i++) {
+            if (monthlyPrices[i] == 0 || yearlyPrices[i] == 0)
+                revert InvalidPrice();
+        }
+
+        // Update payment token
         address oldToken = address(paymentToken);
         paymentToken = IERC20(newPaymentToken);
         emit PaymentTokenUpdated(oldToken, newPaymentToken);
+
+        // Update all plan prices
+        for (uint256 i = 0; i <= MAX_TIER; i++) {
+            planPrices[i].monthlyPrice = monthlyPrices[i];
+            planPrices[i].yearlyPrice = yearlyPrices[i];
+            // Keep existing isActive status
+            emit PlanPriceUpdated(
+                i,
+                monthlyPrices[i],
+                yearlyPrices[i],
+                planPrices[i].isActive
+            );
+        }
     }
 
     /**
