@@ -185,5 +185,7 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
         _unpause();
     }
 
-    receive() external payable {}
+    receive() external payable {
+        emit Deposit(msg.sender, address(0), msg.value);
+    }
 }
