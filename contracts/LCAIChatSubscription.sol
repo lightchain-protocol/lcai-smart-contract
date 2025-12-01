@@ -331,6 +331,7 @@ contract LCAIChatSubscription is ReentrancyGuard, Pausable, Ownable {
      */
     function updateTreasury(address newTreasury) external onlyOwner {
         if (newTreasury == address(0)) revert InvalidAddress();
+        if (newTreasury == treasury) return;
         address oldTreasury = treasury;
         treasury = newTreasury;
         emit TreasuryUpdated(oldTreasury, newTreasury);
@@ -349,6 +350,7 @@ contract LCAIChatSubscription is ReentrancyGuard, Pausable, Ownable {
         uint256[3] calldata yearlyPrices
     ) external onlyOwner {
         if (newPaymentToken == address(0)) revert InvalidAddress();
+        if (newPaymentToken == address(paymentToken)) return;
 
         // Validate all prices are non-zero
         for (uint256 i = 0; i <= MAX_TIER; i++) {
@@ -381,6 +383,7 @@ contract LCAIChatSubscription is ReentrancyGuard, Pausable, Ownable {
      */
     function updateAdmin(address _admin) external onlyAdmin {
         if (_admin == address(0)) revert InvalidAddress();
+        if (_admin == admin) return;
         address previousAdmin = admin;
         admin = _admin;
         emit AdminUpdated(previousAdmin, _admin);
@@ -437,14 +440,6 @@ contract LCAIChatSubscription is ReentrancyGuard, Pausable, Ownable {
      */
     function isAdmin(address account) external view returns (bool) {
         return account == admin;
-    }
-
-    /**
-     * @notice Get total unique lifetime subscribers count
-     * @return Total number of unique users who have ever subscribed
-     */
-    function getTotalSubscribers() external view returns (uint256) {
-        return totalSubscribers;
     }
 
     // ============================================================================

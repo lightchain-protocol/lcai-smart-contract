@@ -143,9 +143,10 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
     }
 
     function _updateAdmin(address _admin) internal {
+        if (_admin.code.length == 0) revert AdminMustBeContract();
+        if (_admin == admin) return;
         address previousAdmin = admin;
         admin = _admin;
-        if (_admin.code.length == 0) revert AdminMustBeContract();
         emit AdminUpdated(previousAdmin, _admin);
     }
 
@@ -153,6 +154,7 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
         address _address,
         bool _isWhitelisted
     ) external onlyAdmin {
+        if (whitelistedAddresses[_address] == _isWhitelisted) return;
         whitelistedAddresses[_address] = _isWhitelisted;
         emit WhitelistedAddressUpdated(_address, _isWhitelisted);
     }
@@ -161,17 +163,20 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
         address _address,
         bool _isBlacklisted
     ) external onlyAdmin {
+        if (blacklistedAddresses[_address] == _isBlacklisted) return;
         blacklistedAddresses[_address] = _isBlacklisted;
         emit BlacklistedAddressUpdated(_address, _isBlacklisted);
     }
 
     function updateWhitelistedStatus(bool _isWhitelisted) external onlyAdmin {
+        if (isWhitelisted == _isWhitelisted) return;
         bool previousStatus = isWhitelisted;
         isWhitelisted = _isWhitelisted;
         emit WhitelistedStatusUpdated(previousStatus, _isWhitelisted);
     }
 
     function updateBlacklistedStatus(bool _isBlacklisted) external onlyAdmin {
+        if (isBlacklisted == _isBlacklisted) return;
         bool previousStatus = isBlacklisted;
         isBlacklisted = _isBlacklisted;
         emit BlacklistedStatusUpdated(previousStatus, _isBlacklisted);

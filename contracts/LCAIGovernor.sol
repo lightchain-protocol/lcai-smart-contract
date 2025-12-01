@@ -207,6 +207,7 @@ contract LCAIGovernor is
         if (newAdmin == address(0)) {
             revert InvalidAdminAddress(newAdmin);
         }
+        if (newAdmin == admin) return;
         // Check that new admin is a contract (for Gnosis Safe multisig)
         if (newAdmin.code.length == 0) {
             revert AdminMustBeContract(newAdmin);
