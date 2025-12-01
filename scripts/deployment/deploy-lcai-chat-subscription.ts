@@ -38,8 +38,12 @@ async function main() {
     process.env.DEFAULT_ADMIN_ADDRESS?.trim() || deployer.address;
 
   if (!treasuryAddress) {
-    console.error("❌ Error: Missing required environment variable TREASURY_ADDRESS");
-    console.error("   Set TREASURY_ADDRESS=0x... in your .env file before deploying.");
+    console.error(
+      "❌ Error: Missing required environment variable TREASURY_ADDRESS"
+    );
+    console.error(
+      "   Set TREASURY_ADDRESS=0x... in your .env file before deploying."
+    );
     process.exit(1);
   }
 
@@ -111,7 +115,7 @@ async function main() {
   try {
     const treasury = await subscription.treasury();
     const isAdmin = await subscription.isAdmin(defaultAdminAddress);
-    const totalSubscribers = await subscription.getTotalActiveSubscribers();
+    const totalSubscribers = await subscription.getTotalSubscribers();
     const paused = await subscription.paused();
 
     // Get all plans
