@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {
     ReentrancyGuard
 } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -13,12 +13,12 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
  * @dev Supports monthly and yearly subscriptions across 3 tiers
  */
 contract NativeLCAIChatSubscription is
-    AccessControl,
     ReentrancyGuard,
-    Pausable
+    Pausable,
+    Ownable
 {
     // ============================================================================
-    // CONSTANTS & ROLES
+    // CONSTANTS & STATE VARIABLES
     // ============================================================================
 
     /// @notice Contract version
@@ -26,8 +26,8 @@ contract NativeLCAIChatSubscription is
 
     event SpecVersionAnnounced(string version);
 
-    /// @notice Admin role for managing subscriptions and pricing
-    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    /// @notice Admin address for managing subscriptions and pricing
+    address public admin;
 
     /// @notice Duration constants
     uint256 public constant MONTHLY_DURATION = 30 days;
@@ -117,8 +117,7 @@ contract NativeLCAIChatSubscription is
         address indexed newTreasury
     );
 
-    event AdminAdded(address indexed admin);
-    event AdminRemoved(address indexed admin);
+    event AdminUpdated(address indexed previousAdmin, address indexed newAdmin);
 
     // ============================================================================
     // ERRORS
@@ -133,6 +132,16 @@ contract NativeLCAIChatSubscription is
     error InvalidAddress();
     error InvalidPrice();
     error HaveActiveSubscription();
+    error Unauthorized();
+
+    // ============================================================================
+    // MODIFIERS
+    // ============================================================================
+
+    modifier onlyAdmin() {
+        if (msg.sender != admin) revert Unauthorized();
+        _;
+    }
 
     // ============================================================================
     // CONSTRUCTOR
@@ -141,17 +150,22 @@ contract NativeLCAIChatSubscription is
     /**
      * @notice Initialize the subscription contract
      * @param _treasury Treasury address to receive subscription payments
-     * @param _defaultAdmin Default admin address
+     * @param _timelock Timelock address (will be the owner)
+     * @param _admin Admin address for managing subscriptions
      */
-    constructor(address payable _treasury, address _defaultAdmin) {
-        if (_treasury == address(0) || _defaultAdmin == address(0))
-            revert InvalidAddress();
+    constructor(
+        address payable _treasury,
+        address _timelock,
+        address _admin
+    ) Ownable(_timelock) {
+        if (
+            _treasury == address(0) ||
+            _timelock == address(0) ||
+            _admin == address(0)
+        ) revert InvalidAddress();
 
         treasury = _treasury;
-
-        // Grant roles
-        _grantRole(DEFAULT_ADMIN_ROLE, _defaultAdmin);
-        _grantRole(ADMIN_ROLE, _defaultAdmin);
+        admin = _admin;
 
         // Initialize default pricing (can be updated by admin)
         // Default prices (example values in wei - adjust as needed)
@@ -299,7 +313,7 @@ contract NativeLCAIChatSubscription is
         uint256 monthlyPrice,
         uint256 yearlyPrice,
         bool isActive
-    ) external onlyRole(ADMIN_ROLE) {
+    ) external onlyAdmin {
         if (tier > MAX_TIER) revert InvalidTier();
         if (monthlyPrice == 0 || yearlyPrice == 0) revert InvalidPrice();
 
@@ -318,7 +332,7 @@ contract NativeLCAIChatSubscription is
      */
     function updateTreasury(
         address payable newTreasury
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyOwner {
         if (newTreasury == address(0)) revert InvalidAddress();
         address oldTreasury = treasury;
         treasury = newTreasury;
@@ -326,29 +340,21 @@ contract NativeLCAIChatSubscription is
     }
 
     /**
-     * @notice Add a new admin
-     * @param newAdmin Address to grant admin role
+     * @notice Update admin address
+     * @param _admin New admin address
      */
-    function addAdmin(address newAdmin) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (newAdmin == address(0)) revert InvalidAddress();
-        grantRole(ADMIN_ROLE, newAdmin);
-        emit AdminAdded(newAdmin);
-    }
-
-    /**
-     * @notice Remove an admin
-     * @param admin Address to revoke admin role
-     */
-    function removeAdmin(address admin) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        revokeRole(ADMIN_ROLE, admin);
-        emit AdminRemoved(admin);
+    function updateAdmin(address _admin) external onlyAdmin {
+        if (_admin == address(0)) revert InvalidAddress();
+        address previousAdmin = admin;
+        admin = _admin;
+        emit AdminUpdated(previousAdmin, _admin);
     }
 
     /**
      * @notice Pause the contract
      * @dev Only admins can pause
      */
-    function pause() external onlyRole(ADMIN_ROLE) {
+    function pause() external onlyAdmin {
         _pause();
     }
 
@@ -356,7 +362,7 @@ contract NativeLCAIChatSubscription is
      * @notice Unpause the contract
      * @dev Only admins can unpause
      */
-    function unpause() external onlyRole(ADMIN_ROLE) {
+    function unpause() external onlyAdmin {
         _unpause();
     }
 
@@ -394,7 +400,7 @@ contract NativeLCAIChatSubscription is
      * @return True if account has admin role
      */
     function isAdmin(address account) external view returns (bool) {
-        return hasRole(ADMIN_ROLE, account);
+        return account == admin;
     }
 
     /**

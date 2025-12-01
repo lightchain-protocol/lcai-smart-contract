@@ -33,9 +33,21 @@ async function main() {
   const [deployer] = await ethers.getSigners();
 
   // Get addresses from environment
+  const paymentTokenAddress = process.env.PAYMENT_TOKEN_ADDRESS?.trim();
   const treasuryAddress = process.env.TREASURY_ADDRESS?.trim();
-  const defaultAdminAddress =
-    process.env.DEFAULT_ADMIN_ADDRESS?.trim() || deployer.address;
+  const timelockAddress = process.env.TIMELOCK_ADDRESS?.trim();
+  const adminAddress =
+    process.env.ADMIN_ADDRESS?.trim() || deployer.address;
+
+  if (!paymentTokenAddress) {
+    console.error(
+      "❌ Error: Missing required environment variable PAYMENT_TOKEN_ADDRESS"
+    );
+    console.error(
+      "   Set PAYMENT_TOKEN_ADDRESS=0x... in your .env file before deploying."
+    );
+    process.exit(1);
+  }
 
   if (!treasuryAddress) {
     console.error(
@@ -43,6 +55,16 @@ async function main() {
     );
     console.error(
       "   Set TREASURY_ADDRESS=0x... in your .env file before deploying."
+    );
+    process.exit(1);
+  }
+
+  if (!timelockAddress) {
+    console.error(
+      "❌ Error: Missing required environment variable TIMELOCK_ADDRESS"
+    );
+    console.error(
+      "   Set TIMELOCK_ADDRESS=0x... in your .env file before deploying."
     );
     process.exit(1);
   }
@@ -62,8 +84,10 @@ async function main() {
   console.log(`🔗 Explorer: ${explorerUrl}\n`);
 
   console.log("📋 Deployment Configuration:");
+  console.log(`   Payment Token: ${paymentTokenAddress}`);
   console.log(`   Treasury: ${treasuryAddress}`);
-  console.log(`   Default Admin: ${defaultAdminAddress}`);
+  console.log(`   Timelock: ${timelockAddress}`);
+  console.log(`   Admin: ${adminAddress}`);
   console.log("");
 
   // ==================== Deploy LCAIChatSubscription ====================
@@ -76,14 +100,16 @@ async function main() {
   );
 
   console.log(
-    `   📋 Constructor arguments: [${treasuryAddress}, ${defaultAdminAddress}]`
+    `   📋 Constructor arguments: [${paymentTokenAddress}, ${treasuryAddress}, ${timelockAddress}, ${adminAddress}]`
   );
 
   let subscription;
   try {
     subscription = await LCAIChatSubscription.deploy(
+      paymentTokenAddress,
       treasuryAddress,
-      defaultAdminAddress
+      timelockAddress,
+      adminAddress
     );
     await subscription.waitForDeployment();
   } catch (error: any) {
@@ -113,8 +139,11 @@ async function main() {
   // Verify deployment
   console.log("   🔍 Verifying deployment...");
   try {
+    const paymentToken = await subscription.paymentToken();
     const treasury = await subscription.treasury();
-    const isAdmin = await subscription.isAdmin(defaultAdminAddress);
+    const owner = await subscription.owner();
+    const admin = await subscription.admin();
+    const isAdmin = await subscription.isAdmin(adminAddress);
     const totalSubscribers = await subscription.getTotalSubscribers();
     const paused = await subscription.paused();
 
@@ -122,11 +151,11 @@ async function main() {
     const plans = await subscription.getAllPlans();
 
     console.log("   ✅ Contract successfully initialized:");
+    console.log(`      Payment Token: ${paymentToken}`);
     console.log(`      Treasury: ${treasury}`);
-    console.log(
-      `      Default Admin: ${defaultAdminAddress} (is admin: ${isAdmin})`
-    );
-    console.log(`      Total Active Subscribers: ${totalSubscribers}`);
+    console.log(`      Owner (Timelock): ${owner}`);
+    console.log(`      Admin: ${admin} (is admin: ${isAdmin})`);
+    console.log(`      Total Lifetime Subscribers: ${totalSubscribers}`);
     console.log(`      Paused: ${paused}`);
     console.log("");
     console.log("   📊 Default Pricing:");

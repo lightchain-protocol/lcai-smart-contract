@@ -3,7 +3,7 @@ import { network } from "hardhat";
 import { parseEther } from "ethers";
 
 const { ethers, networkHelpers } = await network.connect();
-const [deployer, admin, treasury, user1, user2, user3, nonAdmin] =
+const [deployer, timelock, admin, treasury, user1, user2, user3, nonAdmin] =
   await ethers.getSigners();
 
 describe("LCAIChatSubscription", function () {
@@ -26,6 +26,7 @@ describe("LCAIChatSubscription", function () {
     const subscription = await ethers.deployContract("LCAIChatSubscription", [
       await paymentToken.getAddress(),
       treasury.address,
+      timelock.address,
       admin.address,
     ]);
 
@@ -64,14 +65,12 @@ describe("LCAIChatSubscription", function () {
     // Check treasury
     expect(await subscription.treasury()).to.equal(treasury.address);
 
-    // Check admin has admin role
-    expect(await subscription.isAdmin(admin.address)).to.equal(true);
+    // Check owner
+    expect(await subscription.owner()).to.equal(timelock.address);
 
-    // Check default admin role
-    const DEFAULT_ADMIN_ROLE = await subscription.DEFAULT_ADMIN_ROLE();
-    expect(
-      await subscription.hasRole(DEFAULT_ADMIN_ROLE, admin.address)
-    ).to.equal(true);
+    // Check admin
+    expect(await subscription.admin()).to.equal(admin.address);
+    expect(await subscription.isAdmin(admin.address)).to.equal(true);
 
     // Check initial subscriber count
     expect(await subscription.getTotalSubscribers()).to.equal(0n);
@@ -85,6 +84,7 @@ describe("LCAIChatSubscription", function () {
       ethers.deployContract("LCAIChatSubscription", [
         ethers.ZeroAddress,
         treasury.address,
+        timelock.address,
         admin.address,
       ])
     ).to.be.revertedWithCustomError(
@@ -99,6 +99,7 @@ describe("LCAIChatSubscription", function () {
       ethers.deployContract("LCAIChatSubscription", [
         await paymentToken.getAddress(),
         ethers.ZeroAddress,
+        timelock.address,
         admin.address,
       ])
     ).to.be.revertedWithCustomError(
@@ -113,6 +114,7 @@ describe("LCAIChatSubscription", function () {
       ethers.deployContract("LCAIChatSubscription", [
         await paymentToken.getAddress(),
         treasury.address,
+        timelock.address,
         ethers.ZeroAddress,
       ])
     ).to.be.revertedWithCustomError(
@@ -454,26 +456,19 @@ describe("LCAIChatSubscription", function () {
   it("Should reject price update from non-admin", async function () {
     const { subscription } = await deploySubscriptionContract();
 
-    const ADMIN_ROLE = await subscription.ADMIN_ROLE();
-
     await expect(
       subscription
         .connect(nonAdmin)
         .updatePlanPrice(TIER_1, parseEther("0.02"), parseEther("0.2"), true)
-    )
-      .to.be.revertedWithCustomError(
-        subscription,
-        "AccessControlUnauthorizedAccount"
-      )
-      .withArgs(nonAdmin.address, ADMIN_ROLE);
+    ).to.be.revertedWithCustomError(subscription, "Unauthorized");
   });
 
-  it("Should allow default admin to update treasury", async function () {
+  it("Should allow owner to update treasury", async function () {
     const { subscription } = await deploySubscriptionContract();
 
     const newTreasury = user3.address;
 
-    await expect(subscription.connect(admin).updateTreasury(newTreasury))
+    await expect(subscription.connect(timelock).updateTreasury(newTreasury))
       .to.emit(subscription, "TreasuryUpdated")
       .withArgs(treasury.address, newTreasury);
 
@@ -484,34 +479,28 @@ describe("LCAIChatSubscription", function () {
     const { subscription } = await deploySubscriptionContract();
 
     await expect(
-      subscription.connect(admin).updateTreasury(ethers.ZeroAddress)
+      subscription.connect(timelock).updateTreasury(ethers.ZeroAddress)
     ).to.be.revertedWithCustomError(subscription, "InvalidAddress");
   });
 
-  it("Should reject treasury update from non-default-admin", async function () {
+  it("Should reject treasury update from non-owner", async function () {
     const { subscription } = await deploySubscriptionContract();
 
-    // Add user2 as regular admin (not default admin)
-    await subscription.connect(admin).addAdmin(user2.address);
-
-    const DEFAULT_ADMIN_ROLE = await subscription.DEFAULT_ADMIN_ROLE();
-
-    await expect(subscription.connect(user2).updateTreasury(user3.address))
-      .to.be.revertedWithCustomError(
-        subscription,
-        "AccessControlUnauthorizedAccount"
-      )
-      .withArgs(user2.address, DEFAULT_ADMIN_ROLE);
+    // Admin should not be able to update treasury (only owner/timelock can)
+    await expect(subscription.connect(admin).updateTreasury(user3.address))
+      .to.be.revertedWithCustomError(subscription, "OwnableUnauthorizedAccount")
+      .withArgs(admin.address);
   });
 
-  it("Should allow default admin to add new admin", async function () {
+  it("Should allow admin to update admin address", async function () {
     const { subscription } = await deploySubscriptionContract();
 
-    await expect(subscription.connect(admin).addAdmin(user2.address))
-      .to.emit(subscription, "AdminAdded")
-      .withArgs(user2.address);
+    await expect(subscription.connect(admin).updateAdmin(user2.address))
+      .to.emit(subscription, "AdminUpdated")
+      .withArgs(admin.address, user2.address);
 
     expect(await subscription.isAdmin(user2.address)).to.equal(true);
+    expect(await subscription.isAdmin(admin.address)).to.equal(false);
 
     // New admin should be able to update prices
     await expect(
@@ -519,34 +508,13 @@ describe("LCAIChatSubscription", function () {
         .connect(user2)
         .updatePlanPrice(TIER_1, parseEther("0.02"), parseEther("0.2"), true)
     ).to.emit(subscription, "PlanPriceUpdated");
-  });
 
-  it("Should allow default admin to remove admin", async function () {
-    const { subscription } = await deploySubscriptionContract();
-
-    // Add admin
-    await subscription.connect(admin).addAdmin(user2.address);
-    expect(await subscription.isAdmin(user2.address)).to.equal(true);
-
-    // Remove admin
-    await expect(subscription.connect(admin).removeAdmin(user2.address))
-      .to.emit(subscription, "AdminRemoved")
-      .withArgs(user2.address);
-
-    expect(await subscription.isAdmin(user2.address)).to.equal(false);
-
-    // Removed admin should not be able to update prices
-    const ADMIN_ROLE = await subscription.ADMIN_ROLE();
+    // Old admin should no longer be able to update prices
     await expect(
       subscription
-        .connect(user2)
+        .connect(admin)
         .updatePlanPrice(TIER_1, parseEther("0.02"), parseEther("0.2"), true)
-    )
-      .to.be.revertedWithCustomError(
-        subscription,
-        "AccessControlUnauthorizedAccount"
-      )
-      .withArgs(user2.address, ADMIN_ROLE);
+    ).to.be.revertedWithCustomError(subscription, "Unauthorized");
   });
 
   it("Should allow admin to pause contract", async function () {
@@ -569,14 +537,9 @@ describe("LCAIChatSubscription", function () {
   it("Should reject pause from non-admin", async function () {
     const { subscription } = await deploySubscriptionContract();
 
-    const ADMIN_ROLE = await subscription.ADMIN_ROLE();
-
-    await expect(subscription.connect(nonAdmin).pause())
-      .to.be.revertedWithCustomError(
-        subscription,
-        "AccessControlUnauthorizedAccount"
-      )
-      .withArgs(nonAdmin.address, ADMIN_ROLE);
+    await expect(
+      subscription.connect(nonAdmin).pause()
+    ).to.be.revertedWithCustomError(subscription, "Unauthorized");
   });
 
   // ===== VIEW FUNCTIONS TESTS =====
@@ -837,31 +800,4 @@ describe("LCAIChatSubscription", function () {
     ).to.be.revertedWith("This contract uses ERC20 payments only");
   });
 
-  it("Should allow multiple admins to manage the contract", async function () {
-    const { subscription } = await deploySubscriptionContract();
-
-    // Add second admin
-    await subscription.connect(admin).addAdmin(user2.address);
-
-    // Both admins should be able to update prices
-    await subscription
-      .connect(admin)
-      .updatePlanPrice(TIER_1, parseEther("25"), parseEther("205"), true);
-    await subscription
-      .connect(user2)
-      .updatePlanPrice(TIER_2, parseEther("0.03"), parseEther("0.3"), true);
-
-    const [tier1Monthly] = await subscription.getPlan(TIER_1);
-    const [tier2Monthly] = await subscription.getPlan(TIER_2);
-
-    expect(tier1Monthly).to.equal(parseEther("25"));
-    expect(tier2Monthly).to.equal(parseEther("0.03"));
-
-    // Both admins should be able to pause
-    await subscription.connect(user2).pause();
-    expect(await subscription.paused()).to.equal(true);
-
-    await subscription.connect(admin).unpause();
-    expect(await subscription.paused()).to.equal(false);
-  });
 });
