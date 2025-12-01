@@ -74,7 +74,7 @@ describe("LCAIChatSubscription", function () {
     ).to.equal(true);
 
     // Check initial subscriber count
-    expect(await subscription.getTotalActiveSubscribers()).to.equal(0n);
+    expect(await subscription.getTotalSubscribers()).to.equal(0n);
 
     // Check contract is not paused
     expect(await subscription.paused()).to.equal(false);
@@ -193,7 +193,7 @@ describe("LCAIChatSubscription", function () {
     expect(isExpired).to.equal(false);
 
     // Check subscriber count
-    expect(await subscription.getTotalActiveSubscribers()).to.equal(1n);
+    expect(await subscription.getTotalSubscribers()).to.equal(1n);
   });
 
   it("Should allow user to purchase yearly tier 2 subscription", async function () {
@@ -209,9 +209,7 @@ describe("LCAIChatSubscription", function () {
     );
     const timestamp = await getTimestamp();
 
-    await expect(
-      subscription.connect(user1).subscribe(TIER_2, DURATION_YEARLY)
-    )
+    await expect(subscription.connect(user1).subscribe(TIER_2, DURATION_YEARLY))
       .to.emit(subscription, "SubscriptionPurchased")
       .withArgs(
         user1.address,
@@ -651,7 +649,7 @@ describe("LCAIChatSubscription", function () {
   it("Should track total active subscribers correctly", async function () {
     const { subscription, paymentToken } = await deploySubscriptionContract();
 
-    expect(await subscription.getTotalActiveSubscribers()).to.equal(0n);
+    expect(await subscription.getTotalSubscribers()).to.equal(0n);
 
     // Setup tokens for user1
     await setupTokensForUser(
@@ -663,7 +661,7 @@ describe("LCAIChatSubscription", function () {
 
     // User 1 subscribes
     await subscription.connect(user1).subscribe(TIER_1, DURATION_MONTHLY);
-    expect(await subscription.getTotalActiveSubscribers()).to.equal(1n);
+    expect(await subscription.getTotalSubscribers()).to.equal(1n);
 
     // Setup tokens for user2
     await setupTokensForUser(
@@ -675,7 +673,7 @@ describe("LCAIChatSubscription", function () {
 
     // User 2 subscribes
     await subscription.connect(user2).subscribe(TIER_2, DURATION_MONTHLY);
-    expect(await subscription.getTotalActiveSubscribers()).to.equal(2n);
+    expect(await subscription.getTotalSubscribers()).to.equal(2n);
 
     // Setup tokens for user3
     await setupTokensForUser(
@@ -687,7 +685,7 @@ describe("LCAIChatSubscription", function () {
 
     // User 3 subscribes
     await subscription.connect(user3).subscribe(TIER_3, DURATION_MONTHLY);
-    expect(await subscription.getTotalActiveSubscribers()).to.equal(3n);
+    expect(await subscription.getTotalSubscribers()).to.equal(3n);
   });
 
   // ===== INTEGRATION TESTS =====

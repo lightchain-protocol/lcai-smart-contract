@@ -73,8 +73,11 @@ contract NativeLCAIChatSubscription is
     /// @notice Mapping from user address to their subscription
     mapping(address => Subscription) public subscriptions;
 
-    /// @notice Total number of active subscribers
-    uint256 public totalActiveSubscribers;
+    /// @notice Mapping to track if a user has ever subscribed
+    mapping(address => bool) private hasEverSubscribed;
+
+    /// @notice Total number of unique lifetime subscribers
+    uint256 public totalSubscribers;
 
     // ============================================================================
     // EVENTS
@@ -213,9 +216,10 @@ contract NativeLCAIChatSubscription is
             ? MONTHLY_DURATION
             : YEARLY_DURATION;
 
-        // Increment subscriber count if this is first subscription or was previously expired
-        if (sub.expiryTimestamp <= block.timestamp) {
-            totalActiveSubscribers++;
+        // Increment subscriber count only for first-time subscribers
+        if (!hasEverSubscribed[msg.sender]) {
+            totalSubscribers++;
+            hasEverSubscribed[msg.sender] = true;
         }
 
         uint256 expiryTimestamp = block.timestamp + durationSeconds;
@@ -394,11 +398,11 @@ contract NativeLCAIChatSubscription is
     }
 
     /**
-     * @notice Get total active subscribers count
-     * @return Total number of active subscribers
+     * @notice Get total unique lifetime subscribers count
+     * @return Total number of unique users who have ever subscribed
      */
-    function getTotalActiveSubscribers() external view returns (uint256) {
-        return totalActiveSubscribers;
+    function getTotalSubscribers() external view returns (uint256) {
+        return totalSubscribers;
     }
 
     // ============================================================================
