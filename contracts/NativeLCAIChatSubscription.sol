@@ -12,11 +12,7 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
  * @notice Subscription management for LCAI Chat with tiered plans
  * @dev Supports monthly and yearly subscriptions across 3 tiers
  */
-contract NativeLCAIChatSubscription is
-    ReentrancyGuard,
-    Pausable,
-    Ownable
-{
+contract NativeLCAIChatSubscription is ReentrancyGuard, Pausable, Ownable {
     // ============================================================================
     // CONSTANTS & STATE VARIABLES
     // ============================================================================
@@ -330,9 +326,7 @@ contract NativeLCAIChatSubscription is
      * @notice Update treasury address
      * @param newTreasury New treasury address
      */
-    function updateTreasury(
-        address payable newTreasury
-    ) external onlyOwner {
+    function updateTreasury(address payable newTreasury) external onlyOwner {
         if (newTreasury == address(0)) revert InvalidAddress();
         address oldTreasury = treasury;
         treasury = newTreasury;
@@ -401,14 +395,6 @@ contract NativeLCAIChatSubscription is
      */
     function isAdmin(address account) external view returns (bool) {
         return account == admin;
-    }
-
-    /**
-     * @notice Get total unique lifetime subscribers count
-     * @return Total number of unique users who have ever subscribed
-     */
-    function getTotalSubscribers() external view returns (uint256) {
-        return totalSubscribers;
     }
 
     // ============================================================================
