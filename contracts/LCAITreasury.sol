@@ -63,6 +63,7 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
     error AdminMustBeContract();
     error WhitelistedAddressNotAllowed();
     error BlacklistedAddressNotAllowed();
+    error CannotRenounceWhilePaused();
 
     modifier onlyAdmin() {
         if (msg.sender != admin) revert Unauthorized();
@@ -183,6 +184,16 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
 
     function unpause() external onlyAdmin {
         _unpause();
+    }
+
+    /**
+     * @notice Override renounceOwnership to prevent renunciation while paused
+     * @dev Prevents permanent freeze of contract functionality by ensuring
+     *      the contract is unpaused before ownership can be renounced
+     */
+    function renounceOwnership() public override onlyOwner {
+        if (paused()) revert CannotRenounceWhilePaused();
+        super.renounceOwnership();
     }
 
     receive() external payable {
