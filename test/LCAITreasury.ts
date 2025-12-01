@@ -81,7 +81,7 @@ describe("LCAITreasury", function () {
       ])
     ).to.be.revertedWithCustomError(
       await ethers.getContractFactory("LCAITreasury"),
-      "AdminMustBeMultisig"
+      "AdminMustBeContract"
     );
   });
 

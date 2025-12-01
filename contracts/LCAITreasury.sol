@@ -60,7 +60,7 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
     error InsufficientBalance();
     error TransferFailed();
     error Unauthorized();
-    error AdminMustBeMultisig();
+    error AdminMustBeContract();
     error WhitelistedAddressNotAllowed();
     error BlacklistedAddressNotAllowed();
 
@@ -132,6 +132,12 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
     }
 
     // ==================== Admin Functions ====================
+    /**
+     * @notice Update the admin address
+     * @param _admin New admin address (must be a contract, ideally a multisig)
+     * @dev Enforces that admin is a contract address. For maximum security,
+     *      use a vetted multisig implementation like Gnosis Safe.
+     */
     function updateAdmin(address _admin) external onlyAdmin {
         _updateAdmin(_admin);
     }
@@ -139,7 +145,7 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
     function _updateAdmin(address _admin) internal {
         address previousAdmin = admin;
         admin = _admin;
-        if (_admin.code.length == 0) revert AdminMustBeMultisig();
+        if (_admin.code.length == 0) revert AdminMustBeContract();
         emit AdminUpdated(previousAdmin, _admin);
     }
 
