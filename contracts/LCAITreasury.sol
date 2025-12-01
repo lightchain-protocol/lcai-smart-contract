@@ -18,7 +18,6 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
     event SpecVersionAnnounced(string version);
 
     address public admin;
-    address public timelock;
 
     mapping(address => uint256) public spent;
     mapping(address => bool) public whitelistedAddresses;
