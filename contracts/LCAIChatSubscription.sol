@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {
@@ -344,9 +344,7 @@ contract LCAIChatSubscription is ReentrancyGuard, Pausable, Ownable {
      * @notice Update treasury address
      * @param newTreasury New treasury address
      */
-    function updateTreasury(
-        address newTreasury
-    ) external onlyOwner {
+    function updateTreasury(address newTreasury) external onlyOwner {
         if (newTreasury == address(0)) revert InvalidAddress();
         address oldTreasury = treasury;
         treasury = newTreasury;
