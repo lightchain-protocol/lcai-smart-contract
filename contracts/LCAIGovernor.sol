@@ -81,7 +81,7 @@ contract LCAIGovernor is
     }
 
     function proposalThreshold() public pure override returns (uint256) {
-        return 0; // 0 tokens required to propose
+        return 140000 * 10 ** 18; // 140,000 tokens required to propose
     }
 
     // ==================== Circuit Breaker Overrides ====================
