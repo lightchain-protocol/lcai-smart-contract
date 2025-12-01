@@ -421,7 +421,7 @@ contract LCAIChatSubscription is ReentrancyGuard, Pausable, Ownable {
      * @return Array of PlanPrice structures
      */
     function getAllPlans() external view returns (PlanPrice[] memory) {
-        PlanPrice[] memory plans = new PlanPrice[](3);
+        PlanPrice[] memory plans = new PlanPrice[](MAX_TIER + 1);
 
         for (uint256 i = 0; i <= MAX_TIER; i++) {
             plans[i] = planPrices[i];
