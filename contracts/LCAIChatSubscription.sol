@@ -94,20 +94,6 @@ contract LCAIChatSubscription is ReentrancyGuard, Pausable, Ownable {
         uint256 expiryTimestamp
     );
 
-    event SubscriptionRenewed(
-        address indexed user,
-        uint256 tier,
-        uint256 duration,
-        uint256 price,
-        uint256 newExpiryTimestamp
-    );
-
-    event SubscriptionExpired(
-        address indexed user,
-        uint256 tier,
-        uint256 expiredAt
-    );
-
     event PlanPriceUpdated(
         uint256 indexed tier,
         uint256 monthlyPrice,
@@ -136,7 +122,6 @@ contract LCAIChatSubscription is ReentrancyGuard, Pausable, Ownable {
     error PlanNotActive();
     error IncorrectPayment();
     error TreasuryNotSet();
-    error TransferFailed();
     error InvalidAddress();
     error InvalidPrice();
     error HaveActiveSubscription();
