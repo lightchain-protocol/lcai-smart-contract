@@ -38,18 +38,9 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
     mapping(address => bool) public claimed;
 
     event Claimed(address indexed user, uint256 amount, uint256 feePaid);
-    event PresaleUpdated(
-        address indexed oldPresale,
-        address indexed newPresale
-    );
     event TokensDeposited(address indexed from, uint256 amount);
     event TokensWithdrawn(address indexed to, uint256 amount);
     event ClaimFeeUpdated(uint256 oldFee, uint256 newFee);
-    event FeesWithdrawn(address indexed to, uint256 amount);
-    event TreasuryUpdated(
-        address indexed oldTreasury,
-        address indexed newTreasury
-    );
 
     modifier notClaimed() {
         require(!claimed[msg.sender], "LCAIAirdrop: Already claimed");
