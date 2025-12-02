@@ -208,7 +208,14 @@ describe("LCAIGovernor", function () {
       timelock.getAddress(),
     ]);
 
-    return { votesStrategy, timelock, governor, counter, minDelay, adminContract };
+    return {
+      votesStrategy,
+      timelock,
+      governor,
+      counter,
+      minDelay,
+      adminContract,
+    };
   }
 
   // Helper function to set voting power for multiple accounts using PresaleVotingPower
@@ -226,7 +233,12 @@ describe("LCAIGovernor", function () {
   }
 
   // Helper function to call admin functions through the MockAdmin contract
-  async function callAsAdmin(adminContract: any, governor: any, functionName: string, args: any[] = []) {
+  async function callAsAdmin(
+    adminContract: any,
+    governor: any,
+    functionName: string,
+    args: any[] = []
+  ) {
     const governorAddress = await governor.getAddress();
     const calldata = governor.interface.encodeFunctionData(functionName, args);
     return await adminContract.execute(governorAddress, calldata);
@@ -241,11 +253,12 @@ describe("LCAIGovernor", function () {
     // Setup timelock roles
     await setupTimelockRoles(timelock, governor);
 
-    // Distribute tokens and delegate voting power
+    // Distribute tokens and delegate voting power (voter1 needs >= 140k for proposal threshold)
+    // Need enough total votes to reach 3% quorum of 1 billion = 30 million tokens
     await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "20000" },
-      { voter: voter2, amount: "30000" },
-      { voter: voter3, amount: "5000" },
+      { voter: voter1, amount: "15000000" }, // Above threshold + contributes to quorum
+      { voter: voter2, amount: "20000000" }, // Contributes to quorum
+      { voter: voter3, amount: "5000000" }, // Contributes to quorum
     ]);
 
     // Create proposal to increment counter by 5
@@ -313,9 +326,9 @@ describe("LCAIGovernor", function () {
     // Setup timelock roles
     await setupTimelockRoles(timelock, governor);
 
-    // Give small amount of tokens to voter1 (not enough for quorum)
+    // Give tokens: voter1 has enough for threshold but not enough for quorum
     await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "10" }, // Insufficient for 4% quorum
+      { voter: voter1, amount: "200000" }, // Above threshold (140k), but only 0.2% of 100M supply - below 3% quorum
     ]);
 
     // Create a simple proposal
@@ -351,9 +364,9 @@ describe("LCAIGovernor", function () {
     // Setup timelock roles
     await setupTimelockRoles(timelock, governor);
 
-    // Give enough tokens for quorum
+    // Give enough tokens for threshold and quorum (need 30M for 3% of 1B supply)
     await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
+      { voter: voter1, amount: "35000000" }, // Above threshold and above 3% quorum
     ]);
 
     // Create and pass proposal
@@ -412,17 +425,18 @@ describe("LCAIGovernor", function () {
     await setupTimelockRoles(timelock, governor);
 
     // Set voting power manually (no token distribution needed)
+    // Need enough for proposal threshold (140k) and quorum (3% of 1M = 30k)
     await setVotingPowers(votesStrategy, [
-      { voter: voter1, amount: "25000" },
-      { voter: voter2, amount: "35000" },
-      { voter: voter3, amount: "10000" },
+      { voter: voter1, amount: "250000" }, // Above threshold
+      { voter: voter2, amount: "35000" }, // Contributes to quorum
+      { voter: voter3, amount: "10000" }, // Contributes to quorum
     ]);
 
     // Verify voting power was set correctly
     const voter1Power = await votesStrategy.getVotes(voter1.address);
     const voter2Power = await votesStrategy.getVotes(voter2.address);
     const voter3Power = await votesStrategy.getVotes(voter3.address);
-    expect(voter1Power).to.equal(ethers.parseEther("25000"));
+    expect(voter1Power).to.equal(ethers.parseEther("250000"));
     expect(voter2Power).to.equal(ethers.parseEther("35000"));
     expect(voter3Power).to.equal(ethers.parseEther("10000"));
 
@@ -447,12 +461,12 @@ describe("LCAIGovernor", function () {
 
     // Advance to voting and cast votes
     await advanceToVotingAndVote(governor, proposalId, [
-      { voter: voter1, support: 1 }, // For (25000 tokens)
+      { voter: voter1, support: 1 }, // For (250000 tokens)
       { voter: voter2, support: 1 }, // For (35000 tokens)
       { voter: voter3, support: 0 }, // Against (10000 tokens)
     ]);
 
-    // Check proposal succeeded (60000 for vs 10000 against, meets quorum)
+    // Check proposal succeeded (285000 for vs 10000 against, meets 3% quorum of 30k)
     const succeededState = await governor.state(proposalId);
     expect(succeededState).to.equal(ProposalState.Succeeded);
 
@@ -476,26 +490,29 @@ describe("LCAIGovernor", function () {
   });
 
   it("Should respect quorum with PresaleVotingPower", async function () {
-    // Deploy contracts with PresaleVotingPower
+    // Deploy contracts with PresaleVotingPower - total supply of 5M
+    // With 3% quorum, we need 150k tokens voting. voter1 will have just above threshold (141k)
+    // but below quorum, causing proposal to be defeated
     const { votesStrategy, timelock, governor, counter } =
-      await deployManualGovernanceContracts(1000000, 60n);
+      await deployManualGovernanceContracts(5000000, 60n);
 
     // Setup timelock roles
     await setupTimelockRoles(timelock, governor);
 
-    // Set up scenario where total supply is large but voter has insufficient power
-    // Total supply will be 100000, voter1 gets only 1000 (1%), which is less than 4% quorum
+    // Set up scenario where voter1 can propose (>=140k) but voting doesn't meet quorum
+    // Total supply is 5000000, need 3% = 150000 tokens voting to meet quorum
+    // voter1 gets 141000 (just above threshold) and will vote, but below 150k quorum
     await setVotingPowers(votesStrategy, [
-      { voter: voter1, amount: "1000" }, // 1000 tokens for voter1
-      { voter: voter2, amount: "99000" }, // 99000 tokens for voter2 (won't vote)
+      { voter: voter1, amount: "141000" }, // Just above threshold, but below quorum when voting alone
+      { voter: voter2, amount: "4859000" }, // Won't vote, so quorum not met
     ]);
 
-    // Verify total supply and that voter1 has insufficient power for quorum
+    // Verify total supply and voting power
     const totalSupply = await votesStrategy.totalSupply();
-    expect(totalSupply).to.equal(ethers.parseEther("1000000"));
+    expect(totalSupply).to.equal(ethers.parseEther("5000000"));
 
     const voter1Power = await votesStrategy.getVotes(voter1.address);
-    expect(voter1Power).to.equal(ethers.parseEther("1000"));
+    expect(voter1Power).to.equal(ethers.parseEther("141000"));
 
     // Create a simple proposal
     const { targets, values, calldatas } = await createCounterIncrementProposal(
@@ -512,9 +529,9 @@ describe("LCAIGovernor", function () {
     );
 
     // Advance to voting and vote with insufficient power for quorum
-    // voter1 has 1000 tokens, but quorum is 4% of 100000 = 4000 tokens
+    // voter1 has 141000 tokens, but quorum is 3% of 5000000 = 150000 tokens
     await advanceToVotingAndVote(governor, proposalId, [
-      { voter: voter1, support: 1 }, // For with 1000 tokens (insufficient for 4000 token quorum)
+      { voter: voter1, support: 1 }, // For with 141k tokens (insufficient for 150k quorum)
     ]);
 
     // Check proposal failed due to insufficient quorum
@@ -530,22 +547,22 @@ describe("LCAIGovernor", function () {
     // Setup timelock roles
     await setupTimelockRoles(timelock, governor);
 
-    // Initially set low voting power
-    await setVotingPowers(votesStrategy, [{ voter: voter1, amount: "100" }]);
+    // Initially set voting power below proposal threshold
+    await setVotingPowers(votesStrategy, [{ voter: voter1, amount: "100000" }]);
 
     // Verify initial voting power
     let voter1Power = await votesStrategy.getVotes(voter1.address);
-    expect(voter1Power).to.equal(ethers.parseEther("100"));
+    expect(voter1Power).to.equal(ethers.parseEther("100000"));
 
-    // Update voting power to higher amount
+    // Update voting power to amount above threshold and quorum
     await votesStrategy.setVotingPower(
       voter1.address,
-      ethers.parseEther("50000")
+      ethers.parseEther("200000")
     );
 
     // Verify updated voting power
     voter1Power = await votesStrategy.getVotes(voter1.address);
-    expect(voter1Power).to.equal(ethers.parseEther("50000"));
+    expect(voter1Power).to.equal(ethers.parseEther("200000"));
 
     // Verify total supply was updated correctly
     const totalSupply = await votesStrategy.totalSupply();
@@ -568,9 +585,9 @@ describe("LCAIGovernor", function () {
       voter1
     );
 
-    // Vote should now succeed with sufficient power
+    // Vote should now succeed with sufficient power (200k above 30k quorum)
     await advanceToVotingAndVote(governor, proposalId, [
-      { voter: voter1, support: 1 }, // For with 50000 tokens (sufficient for quorum)
+      { voter: voter1, support: 1 }, // For with 200k tokens (above threshold and quorum)
     ]);
 
     // Check proposal succeeded
@@ -613,7 +630,7 @@ describe("LCAIGovernor", function () {
 
     // Distribute tokens
     await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
+      { voter: voter1, amount: "35000000" },
     ]);
 
     // Create proposal
@@ -639,7 +656,7 @@ describe("LCAIGovernor", function () {
       proposalData.targets,
       proposalData.values,
       proposalData.calldatas,
-      proposalData.descriptionHash
+      proposalData.descriptionHash,
     ]);
 
     // Verify proposal is now Canceled
@@ -657,7 +674,7 @@ describe("LCAIGovernor", function () {
 
     // Distribute tokens
     await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
+      { voter: voter1, amount: "35000000" },
     ]);
 
     // Create proposal
@@ -687,7 +704,7 @@ describe("LCAIGovernor", function () {
       proposalData.targets,
       proposalData.values,
       proposalData.calldatas,
-      proposalData.descriptionHash
+      proposalData.descriptionHash,
     ]);
 
     // Verify proposal is now Canceled
@@ -705,7 +722,7 @@ describe("LCAIGovernor", function () {
 
     // Distribute tokens
     await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
+      { voter: voter1, amount: "35000000" },
     ]);
 
     // Create proposal
@@ -736,7 +753,7 @@ describe("LCAIGovernor", function () {
       proposalData.targets,
       proposalData.values,
       proposalData.calldatas,
-      proposalData.descriptionHash
+      proposalData.descriptionHash,
     ]);
 
     // Verify proposal is now Canceled
@@ -758,7 +775,7 @@ describe("LCAIGovernor", function () {
 
     // Distribute tokens
     await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
+      { voter: voter1, amount: "35000000" },
     ]);
 
     // Create proposal
@@ -790,7 +807,7 @@ describe("LCAIGovernor", function () {
       proposalData.targets,
       proposalData.values,
       proposalData.calldatas,
-      proposalData.descriptionHash
+      proposalData.descriptionHash,
     ]);
 
     // Verify proposal is now Canceled
@@ -808,7 +825,7 @@ describe("LCAIGovernor", function () {
 
     // Distribute tokens
     await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
+      { voter: voter1, amount: "35000000" },
     ]);
 
     // Create proposal
@@ -859,7 +876,7 @@ describe("LCAIGovernor", function () {
 
     // Distribute tokens
     await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
+      { voter: voter1, amount: "35000000" },
     ]);
 
     // Create, vote, queue and execute proposal
@@ -896,7 +913,7 @@ describe("LCAIGovernor", function () {
         proposalData.targets,
         proposalData.values,
         proposalData.calldatas,
-        proposalData.descriptionHash
+        proposalData.descriptionHash,
       ]);
       expect.fail("Should have failed - proposal is executed");
     } catch (error: any) {
@@ -925,7 +942,9 @@ describe("LCAIGovernor", function () {
     // Admin directly updates to new MockAdmin
     const newAdminAddress = await newAdminContract.getAddress();
     const governorAddress = await governor.getAddress();
-    const calldata = governor.interface.encodeFunctionData("updateAdmin", [newAdminAddress]);
+    const calldata = governor.interface.encodeFunctionData("updateAdmin", [
+      newAdminAddress,
+    ]);
     await adminContract.connect(deployer).execute(governorAddress, calldata);
 
     // Verify admin was updated
@@ -934,7 +953,7 @@ describe("LCAIGovernor", function () {
 
     // Distribute tokens for subsequent test
     await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
+      { voter: voter1, amount: "35000000" },
     ]);
 
     // Verify old admin can no longer emergency cancel
@@ -956,10 +975,10 @@ describe("LCAIGovernor", function () {
 
     try {
       await callAsAdmin(adminContract, governor, "emergencyCancel", [
-          proposalData2.targets,
-          proposalData2.values,
-          proposalData2.calldatas,
-          proposalData2.descriptionHash
+        proposalData2.targets,
+        proposalData2.values,
+        proposalData2.calldatas,
+        proposalData2.descriptionHash,
       ]);
       expect.fail("Old admin should not be able to cancel");
     } catch (error: any) {
@@ -969,10 +988,10 @@ describe("LCAIGovernor", function () {
 
     // Verify new admin can emergency cancel
     const calldata2 = governor.interface.encodeFunctionData("emergencyCancel", [
-        proposalData2.targets,
-        proposalData2.values,
-        proposalData2.calldatas,
-        proposalData2.descriptionHash
+      proposalData2.targets,
+      proposalData2.values,
+      proposalData2.calldatas,
+      proposalData2.descriptionHash,
     ]);
     await newAdminContract.connect(voter2).execute(governorAddress, calldata2);
 
@@ -994,7 +1013,7 @@ describe("LCAIGovernor", function () {
 
     // Distribute tokens
     await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
+      { voter: voter1, amount: "35000000" },
     ]);
 
     // Create proposal
@@ -1051,7 +1070,7 @@ describe("LCAIGovernor", function () {
       proposalData.targets,
       proposalData.values,
       proposalData.calldatas,
-      proposalData.descriptionHash
+      proposalData.descriptionHash,
     ]);
 
     // Verify proposal is now Canceled in governor
@@ -1073,7 +1092,7 @@ describe("LCAIGovernor", function () {
 
     // Distribute tokens
     await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
+      { voter: voter1, amount: "35000000" },
     ]);
 
     // Deploy a new MockAdmin to use as new admin
@@ -1085,7 +1104,10 @@ describe("LCAIGovernor", function () {
     const newAdminAddress = await newAdminContract.getAddress();
     const oldAdminAddress = await adminContract.getAddress();
     const governorAddress = await governor.getAddress();
-    const updateCalldata = governor.interface.encodeFunctionData("updateAdmin", [newAdminAddress]);
+    const updateCalldata = governor.interface.encodeFunctionData(
+      "updateAdmin",
+      [newAdminAddress]
+    );
 
     // Check for AdminUpdated event
     await expect(
@@ -1112,12 +1134,15 @@ describe("LCAIGovernor", function () {
       );
 
     // Check for EmergencyCancellation event
-    const cancelCalldata = governor.interface.encodeFunctionData("emergencyCancel", [
-          proposalData2.targets,
-          proposalData2.values,
-          proposalData2.calldatas,
-          proposalData2.descriptionHash
-    ]);
+    const cancelCalldata = governor.interface.encodeFunctionData(
+      "emergencyCancel",
+      [
+        proposalData2.targets,
+        proposalData2.values,
+        proposalData2.calldatas,
+        proposalData2.descriptionHash,
+      ]
+    );
 
     await expect(
       newAdminContract.connect(voter2).execute(governorAddress, cancelCalldata)
@@ -1172,7 +1197,8 @@ describe("LCAIGovernor", function () {
 
   it("Should allow admin to unpause the governor", async function () {
     // Deploy contracts
-    const { token, timelock, governor, adminContract } = await deployGovernanceContracts(60n);
+    const { token, timelock, governor, adminContract } =
+      await deployGovernanceContracts(60n);
 
     // Setup timelock roles
     await setupTimelockRoles(timelock, governor);
@@ -1194,7 +1220,8 @@ describe("LCAIGovernor", function () {
 
   it("Should prevent non-admin from unpausing the governor", async function () {
     // Deploy contracts
-    const { token, timelock, governor, adminContract } = await deployGovernanceContracts(60n);
+    const { token, timelock, governor, adminContract } =
+      await deployGovernanceContracts(60n);
 
     // Setup timelock roles
     await setupTimelockRoles(timelock, governor);
@@ -1225,7 +1252,7 @@ describe("LCAIGovernor", function () {
 
     // Distribute tokens
     await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
+      { voter: voter1, amount: "35000000" },
     ]);
 
     // Admin pauses the governor
@@ -1257,7 +1284,7 @@ describe("LCAIGovernor", function () {
 
     // Distribute tokens
     await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
+      { voter: voter1, amount: "35000000" },
     ]);
 
     // Create and vote on proposal while unpaused
@@ -1300,7 +1327,7 @@ describe("LCAIGovernor", function () {
 
     // Distribute tokens
     await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
+      { voter: voter1, amount: "35000000" },
     ]);
 
     // Create, vote, and queue proposal while unpaused
@@ -1348,7 +1375,7 @@ describe("LCAIGovernor", function () {
 
     // Distribute tokens
     await distributeTokensAndDelegate(token, [
-      { voter: voter1, amount: "50000" },
+      { voter: voter1, amount: "35000000" },
     ]);
 
     // Admin pauses the governor
@@ -1401,7 +1428,8 @@ describe("LCAIGovernor", function () {
 
   it("Should emit Paused and Unpaused events", async function () {
     // Deploy contracts
-    const { token, timelock, governor, adminContract } = await deployGovernanceContracts(60n);
+    const { token, timelock, governor, adminContract } =
+      await deployGovernanceContracts(60n);
 
     // Setup timelock roles
     await setupTimelockRoles(timelock, governor);
@@ -1425,7 +1453,8 @@ describe("LCAIGovernor", function () {
 
   it("Should prevent admin from directly updating admin address", async function () {
     // Deploy contracts
-    const { token, timelock, governor, adminContract } = await deployGovernanceContracts(60n);
+    const { token, timelock, governor, adminContract } =
+      await deployGovernanceContracts(60n);
 
     // Setup timelock roles
     await setupTimelockRoles(timelock, governor);
@@ -1437,7 +1466,9 @@ describe("LCAIGovernor", function () {
 
     // Try to update admin directly as deployer EOA (not the admin contract - should fail)
     try {
-      await governor.connect(deployer).updateAdmin(await newAdminContract.getAddress());
+      await governor
+        .connect(deployer)
+        .updateAdmin(await newAdminContract.getAddress());
       expect.fail("Should have failed - non-admin cannot update");
     } catch (error: any) {
       expect(error.message.includes("UnauthorizedAdmin")).to.be.true;
@@ -1456,7 +1487,9 @@ describe("LCAIGovernor", function () {
     await setupTimelockRoles(timelock, governor);
 
     // Deploy a mock contract for testing
-    const mockAdmin = await ethers.deployContract("MockAdmin", [voter2.address]);
+    const mockAdmin = await ethers.deployContract("MockAdmin", [
+      voter2.address,
+    ]);
 
     // Try to update admin as random EOA (should fail)
     try {
@@ -1483,7 +1516,9 @@ describe("LCAIGovernor", function () {
     // Admin directly updates (this is the only way to update)
     const newAdminAddress = await mockSafe.getAddress();
     const governorAddress = await governor.getAddress();
-    const calldata = governor.interface.encodeFunctionData("updateAdmin", [newAdminAddress]);
+    const calldata = governor.interface.encodeFunctionData("updateAdmin", [
+      newAdminAddress,
+    ]);
     await adminContract.connect(deployer).execute(governorAddress, calldata);
 
     // Verify admin was updated
@@ -1520,10 +1555,745 @@ describe("LCAIGovernor", function () {
 
     // Try to update admin to EOA via admin
     const governorAddress = await governor.getAddress();
-    const calldata = governor.interface.encodeFunctionData("updateAdmin", [voter2.address]);
+    const calldata = governor.interface.encodeFunctionData("updateAdmin", [
+      voter2.address,
+    ]);
 
     await expect(
       adminContract.connect(deployer).execute(governorAddress, calldata)
     ).to.be.revertedWith("MockAdmin: execution failed");
+  });
+
+  // ===== UPDATE QUORUM NUMERATOR TESTS =====
+  // These tests verify the updateQuorumNumerator functionality that allows
+  // governance to adjust the quorum threshold within safe bounds
+
+  it("Should allow governance to update quorum numerator within valid range", async function () {
+    // Deploy contracts with PresaleVotingPower for easier control
+    const { votesStrategy, timelock, governor, minDelay } =
+      await deployManualGovernanceContracts(1000000, 60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Set voting power for governance
+    await setVotingPowers(votesStrategy, [
+      { voter: voter1, amount: "200000" }, // Enough for proposal threshold and quorum
+    ]);
+
+    // Verify initial quorum (should be 3% as set in constructor)
+    const initialQuorum = await governor["quorumNumerator()"]();
+    expect(initialQuorum).to.equal(3n);
+
+    // Create proposal to update quorum to 10%
+    const targets = [await governor.getAddress()];
+    const values = [0n];
+    const calldatas = [
+      governor.interface.encodeFunctionData("updateQuorumNumerator", [10]),
+    ];
+    const description = "Update quorum to 10%";
+
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    // Vote and execute through governance
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+    ]);
+
+    // Verify proposal succeeded before queueing
+    const stateAfterVote = await governor.state(proposalId);
+    expect(stateAfterVote).to.equal(ProposalState.Succeeded);
+
+    await queueProposal(governor, proposalData);
+
+    const lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
+
+    await executeProposal(governor, proposalData);
+
+    // Verify quorum was updated
+    const updatedQuorum = await governor["quorumNumerator()"]();
+    expect(updatedQuorum).to.equal(10n);
+  });
+
+  it("Should prevent direct call to updateQuorumNumerator", async function () {
+    // Deploy contracts
+    const { timelock, governor } = await deployGovernanceContracts(60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Try to update quorum directly (should fail - only governance can call)
+    try {
+      await governor.connect(voter1).updateQuorumNumerator(10);
+      expect.fail("Should have failed - only governance can call");
+    } catch (error: any) {
+      expect(error.message.includes("GovernorOnlyExecutor")).ok;
+    }
+
+    // Verify quorum remains unchanged
+    const quorum = await governor["quorumNumerator()"]();
+    expect(quorum).to.equal(3n);
+  });
+
+  it("Should reject quorum numerator below minimum (3%)", async function () {
+    // Deploy contracts with PresaleVotingPower for easier setup
+    const { votesStrategy, timelock, governor, minDelay } =
+      await deployManualGovernanceContracts(1000000, 60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Set voting power for governance
+    await setVotingPowers(votesStrategy, [{ voter: voter1, amount: "200000" }]);
+
+    // Try to update quorum to 2% (below minimum) through governance
+    const targets = [await governor.getAddress()];
+    const values = [0n];
+    const calldatas = [
+      governor.interface.encodeFunctionData("updateQuorumNumerator", [2]),
+    ];
+    const description = "Update quorum to 2% (invalid)";
+
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    // Vote and queue
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+    ]);
+    await queueProposal(governor, proposalData);
+
+    const lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
+
+    // Execution should fail due to validation
+    try {
+      await executeProposal(governor, proposalData);
+      expect.fail("Should have failed - quorum below minimum");
+    } catch (error: any) {
+      expect(error.message.includes("InvalidQuorumFraction")).ok;
+    }
+
+    // Verify quorum remains unchanged
+    const quorum = await governor["quorumNumerator()"]();
+    expect(quorum).to.equal(3n);
+  });
+
+  it("Should reject quorum numerator above maximum (15%)", async function () {
+    // Deploy contracts with PresaleVotingPower for easier setup
+    const { votesStrategy, timelock, governor, minDelay } =
+      await deployManualGovernanceContracts(1000000, 60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Set voting power for governance
+    await setVotingPowers(votesStrategy, [{ voter: voter1, amount: "200000" }]);
+
+    // Try to update quorum to 16% (above maximum) through governance
+    const targets = [await governor.getAddress()];
+    const values = [0n];
+    const calldatas = [
+      governor.interface.encodeFunctionData("updateQuorumNumerator", [16]),
+    ];
+    const description = "Update quorum to 16% (invalid)";
+
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    // Vote and queue
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+    ]);
+    await queueProposal(governor, proposalData);
+
+    const lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
+
+    // Execution should fail due to validation
+    try {
+      await executeProposal(governor, proposalData);
+      expect.fail("Should have failed - quorum above maximum");
+    } catch (error: any) {
+      expect(error.message.includes("InvalidQuorumFraction")).ok;
+    }
+
+    // Verify quorum remains unchanged
+    const quorum = await governor["quorumNumerator()"]();
+    expect(quorum).to.equal(3n);
+  });
+
+  it("Should affect proposal success with updated quorum", async function () {
+    // Deploy contracts with PresaleVotingPower for easier control
+    const { votesStrategy, timelock, governor, counter, minDelay } =
+      await deployManualGovernanceContracts(1000000, 60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Set voting power: voter1 has enough for proposals, voter2 will provide votes
+    await setVotingPowers(votesStrategy, [
+      { voter: voter1, amount: "200000" }, // For creating proposals
+      { voter: voter2, amount: "60000" }, // 6% of 1,000,000
+    ]);
+
+    // Verify total supply
+    const totalSupply = await votesStrategy.totalSupply();
+    expect(totalSupply).to.equal(ethers.parseEther("1000000"));
+
+    // Create first proposal with initial 3% quorum
+    const {
+      targets: targets1,
+      values: values1,
+      calldatas: calldatas1,
+    } = await createCounterIncrementProposal(counter, 1n);
+    const description1 = "Proposal with 3% quorum";
+    const { proposalId: proposalId1 } = await createProposal(
+      governor,
+      targets1,
+      values1,
+      calldatas1,
+      description1,
+      voter1
+    );
+
+    // Vote with 60000 tokens (6% of total supply, exceeds 3% quorum)
+    await advanceToVotingAndVote(governor, proposalId1, [
+      { voter: voter2, support: 1 },
+    ]);
+
+    // Proposal should succeed with 6% votes when quorum is 3%
+    const state1 = await governor.state(proposalId1);
+    expect(state1).to.equal(ProposalState.Succeeded);
+
+    // Now update quorum to 10% through governance
+    const updateTargets = [await governor.getAddress()];
+    const updateValues = [0n];
+    const updateCalldatas = [
+      governor.interface.encodeFunctionData("updateQuorumNumerator", [10]),
+    ];
+    const updateDescription = "Update quorum to 10%";
+
+    const { proposalId: updateProposalId, proposalData: updateProposalData } =
+      await createProposal(
+        governor,
+        updateTargets,
+        updateValues,
+        updateCalldatas,
+        updateDescription,
+        voter1
+      );
+
+    // Execute quorum update
+    await advanceToVotingAndVote(governor, updateProposalId, [
+      { voter: voter1, support: 1 },
+      { voter: voter2, support: 1 },
+    ]);
+    await queueProposal(governor, updateProposalData);
+
+    let lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
+    await executeProposal(governor, updateProposalData);
+
+    // Verify quorum was updated
+    const updatedQuorum = await governor["quorumNumerator()"]();
+    expect(updatedQuorum).to.equal(10n);
+
+    // Mine blocks to ensure the change is effective
+    await networkHelpers.mine(10);
+
+    // Create second proposal with new 10% quorum
+    const {
+      targets: targets2,
+      values: values2,
+      calldatas: calldatas2,
+    } = await createCounterIncrementProposal(counter, 2n);
+    const description2 = "Proposal with 10% quorum";
+    const { proposalId: proposalId2 } = await createProposal(
+      governor,
+      targets2,
+      values2,
+      calldatas2,
+      description2,
+      voter1
+    );
+
+    // Vote with same 60000 tokens (6% of total supply, does NOT exceed 10% quorum)
+    await advanceToVotingAndVote(governor, proposalId2, [
+      { voter: voter2, support: 1 },
+    ]);
+
+    // Proposal should fail because 6% votes < 10% quorum
+    const state2 = await governor.state(proposalId2);
+    expect(state2).to.equal(ProposalState.Defeated);
+  });
+
+  it("Should verify quorum calculation at different levels", async function () {
+    // Deploy contracts with PresaleVotingPower
+    const { votesStrategy, timelock, governor } =
+      await deployManualGovernanceContracts(1000000, 60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Total supply is 1,000,000 tokens
+    const totalSupply = await votesStrategy.totalSupply();
+    expect(totalSupply).to.equal(ethers.parseEther("1000000"));
+
+    // Test initial quorum at 3%: should require 30,000 tokens
+    const currentBlock = await ethers.provider.getBlockNumber();
+    const quorum3 = await governor.quorum(currentBlock);
+    expect(quorum3).to.equal(ethers.parseEther("30000")); // 3% of 1,000,000
+
+    // Calculate expected quorum at different levels
+    // 5% of 1,000,000 = 50,000
+    // 10% of 1,000,000 = 100,000
+    // 15% of 1,000,000 = 150,000
+
+    // Verify the quorum percentage denominator (should be 100)
+    const denominator = await governor.quorumDenominator();
+    expect(denominator).to.equal(100n);
+  });
+
+  it("Should emit QuorumNumeratorUpdated event when quorum is updated", async function () {
+    // Deploy contracts with PresaleVotingPower for easier control
+    const { votesStrategy, timelock, governor, minDelay } =
+      await deployManualGovernanceContracts(1000000, 60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Set voting power for governance
+    await setVotingPowers(votesStrategy, [{ voter: voter1, amount: "200000" }]);
+
+    // Create proposal to update quorum
+    const targets = [await governor.getAddress()];
+    const values = [0n];
+    const calldatas = [
+      governor.interface.encodeFunctionData("updateQuorumNumerator", [10]),
+    ];
+    const description = "Update quorum to 10%";
+
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    // Vote and queue
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+    ]);
+    await queueProposal(governor, proposalData);
+
+    const lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
+
+    // Execute and check for event
+    const executeTx = await governor.execute(
+      proposalData.targets,
+      proposalData.values,
+      proposalData.calldatas,
+      proposalData.descriptionHash
+    );
+
+    await expect(executeTx)
+      .to.emit(governor, "QuorumNumeratorUpdated")
+      .withArgs(3n, 10n); // old value = 3, new value = 10
+  });
+
+  // ===== GOVERNOR SETTINGS TESTS =====
+  // These tests verify the GovernorSettings functionality that allows
+  // governance to adjust voting parameters
+
+  it("Should allow governance to update voting delay", async function () {
+    // Deploy contracts with PresaleVotingPower
+    const { votesStrategy, timelock, governor, minDelay } =
+      await deployManualGovernanceContracts(1000000, 60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Set voting power for governance
+    await setVotingPowers(votesStrategy, [{ voter: voter1, amount: "200000" }]);
+
+    // Verify initial voting delay (7200 blocks as set in constructor)
+    const initialDelay = await governor.votingDelay();
+    expect(initialDelay).to.equal(7200n);
+
+    // Create proposal to update voting delay to 10000
+    const targets = [await governor.getAddress()];
+    const values = [0n];
+    const calldatas = [
+      governor.interface.encodeFunctionData("setVotingDelay", [10000]),
+    ];
+    const description = "Update voting delay to 10000 blocks";
+
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    // Vote and execute through governance
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+    ]);
+    await queueProposal(governor, proposalData);
+
+    const lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
+    await executeProposal(governor, proposalData);
+
+    // Verify voting delay was updated
+    const updatedDelay = await governor.votingDelay();
+    expect(updatedDelay).to.equal(10000n);
+  });
+
+  it("Should allow governance to update voting period", async function () {
+    // Deploy contracts with PresaleVotingPower
+    const { votesStrategy, timelock, governor, minDelay } =
+      await deployManualGovernanceContracts(1000000, 60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Set voting power for governance
+    await setVotingPowers(votesStrategy, [{ voter: voter1, amount: "200000" }]);
+
+    // Verify initial voting period (100800 blocks as set in constructor)
+    const initialPeriod = await governor.votingPeriod();
+    expect(initialPeriod).to.equal(100800n);
+
+    // Create proposal to update voting period to 150000
+    const targets = [await governor.getAddress()];
+    const values = [0n];
+    const calldatas = [
+      governor.interface.encodeFunctionData("setVotingPeriod", [150000]),
+    ];
+    const description = "Update voting period to 150000 blocks";
+
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    // Vote and execute through governance
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+    ]);
+    await queueProposal(governor, proposalData);
+
+    const lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
+    await executeProposal(governor, proposalData);
+
+    // Verify voting period was updated
+    const updatedPeriod = await governor.votingPeriod();
+    expect(updatedPeriod).to.equal(150000n);
+  });
+
+  it("Should allow governance to update proposal threshold", async function () {
+    // Deploy contracts with PresaleVotingPower
+    const { votesStrategy, timelock, governor, minDelay } =
+      await deployManualGovernanceContracts(1000000, 60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Set voting power for governance
+    await setVotingPowers(votesStrategy, [{ voter: voter1, amount: "200000" }]);
+
+    // Verify initial proposal threshold (140000 * 10^18 as set in constructor)
+    const initialThreshold = await governor.proposalThreshold();
+    expect(initialThreshold).to.equal(ethers.parseEther("140000"));
+
+    // Create proposal to update proposal threshold to 100000 tokens
+    const newThreshold = ethers.parseEther("100000");
+    const targets = [await governor.getAddress()];
+    const values = [0n];
+    const calldatas = [
+      governor.interface.encodeFunctionData("setProposalThreshold", [
+        newThreshold,
+      ]),
+    ];
+    const description = "Update proposal threshold to 100000 tokens";
+
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    // Vote and execute through governance
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+    ]);
+    await queueProposal(governor, proposalData);
+
+    const lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
+    await executeProposal(governor, proposalData);
+
+    // Verify proposal threshold was updated
+    const updatedThreshold = await governor.proposalThreshold();
+    expect(updatedThreshold).to.equal(newThreshold);
+  });
+
+  it("Should prevent direct call to setVotingDelay", async function () {
+    // Deploy contracts
+    const { timelock, governor } = await deployGovernanceContracts(60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Try to update voting delay directly (should fail - only governance can call)
+    try {
+      await governor.connect(voter1).setVotingDelay(10000);
+      expect.fail("Should have failed - only governance can call");
+    } catch (error: any) {
+      expect(error.message.includes("GovernorOnlyExecutor")).ok;
+    }
+
+    // Verify voting delay remains unchanged
+    const delay = await governor.votingDelay();
+    expect(delay).to.equal(7200n);
+  });
+
+  it("Should prevent direct call to setVotingPeriod", async function () {
+    // Deploy contracts
+    const { timelock, governor } = await deployGovernanceContracts(60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Try to update voting period directly (should fail - only governance can call)
+    try {
+      await governor.connect(voter1).setVotingPeriod(150000);
+      expect.fail("Should have failed - only governance can call");
+    } catch (error: any) {
+      expect(error.message.includes("GovernorOnlyExecutor")).ok;
+    }
+
+    // Verify voting period remains unchanged
+    const period = await governor.votingPeriod();
+    expect(period).to.equal(100800n);
+  });
+
+  it("Should prevent direct call to setProposalThreshold", async function () {
+    // Deploy contracts
+    const { timelock, governor } = await deployGovernanceContracts(60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Try to update proposal threshold directly (should fail - only governance can call)
+    try {
+      await governor
+        .connect(voter1)
+        .setProposalThreshold(ethers.parseEther("100000"));
+      expect.fail("Should have failed - only governance can call");
+    } catch (error: any) {
+      expect(error.message.includes("GovernorOnlyExecutor")).ok;
+    }
+
+    // Verify proposal threshold remains unchanged
+    const threshold = await governor.proposalThreshold();
+    expect(threshold).to.equal(ethers.parseEther("140000"));
+  });
+
+  it("Should emit events when GovernorSettings values are updated", async function () {
+    // Deploy contracts with PresaleVotingPower
+    const { votesStrategy, timelock, governor, minDelay } =
+      await deployManualGovernanceContracts(1000000, 60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Set voting power for governance
+    await setVotingPowers(votesStrategy, [{ voter: voter1, amount: "200000" }]);
+
+    // Test VotingDelaySet event
+    const targets1 = [await governor.getAddress()];
+    const values1 = [0n];
+    const calldatas1 = [
+      governor.interface.encodeFunctionData("setVotingDelay", [10000]),
+    ];
+    const description1 = "Update voting delay";
+
+    const { proposalId: proposalId1, proposalData: proposalData1 } =
+      await createProposal(
+        governor,
+        targets1,
+        values1,
+        calldatas1,
+        description1,
+        voter1
+      );
+
+    await advanceToVotingAndVote(governor, proposalId1, [
+      { voter: voter1, support: 1 },
+    ]);
+    await queueProposal(governor, proposalData1);
+
+    let lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
+
+    const executeTx1 = await governor.execute(
+      proposalData1.targets,
+      proposalData1.values,
+      proposalData1.calldatas,
+      proposalData1.descriptionHash
+    );
+
+    await expect(executeTx1)
+      .to.emit(governor, "VotingDelaySet")
+      .withArgs(7200n, 10000n); // old value = 7200, new value = 10000
+  });
+
+  it("Should update proposal threshold and affect new proposals", async function () {
+    // Deploy contracts with PresaleVotingPower
+    const { votesStrategy, timelock, governor, counter, minDelay } =
+      await deployManualGovernanceContracts(1000000, 60n);
+
+    // Setup timelock roles
+    await setupTimelockRoles(timelock, governor);
+
+    // Set voting power: voter1 has 200k, voter2 has 50k
+    await setVotingPowers(votesStrategy, [
+      { voter: voter1, amount: "200000" }, // Can always propose
+      { voter: voter2, amount: "50000" }, // Will be blocked after threshold update
+    ]);
+
+    // Verify initial threshold is 140,000
+    let threshold = await governor.proposalThreshold();
+    expect(threshold).to.equal(ethers.parseEther("140000"));
+
+    // voter2 CANNOT create proposal with current threshold (50k < 140k)
+    const {
+      targets: testTargets1,
+      values: testValues1,
+      calldatas: testCalldatas1,
+    } = await createCounterIncrementProposal(counter, 1n);
+
+    try {
+      await governor
+        .connect(voter2)
+        .propose(
+          testTargets1,
+          testValues1,
+          testCalldatas1,
+          "Test proposal before lowering threshold"
+        );
+      expect.fail("Should have failed - voter2 below threshold");
+    } catch (error: any) {
+      expect(error.message.includes("GovernorInsufficientProposerVotes")).ok;
+    }
+
+    // Update proposal threshold to 100k through governance (voter1 creates proposal)
+    const newThreshold = ethers.parseEther("100000");
+    const targets = [await governor.getAddress()];
+    const values = [0n];
+    const calldatas = [
+      governor.interface.encodeFunctionData("setProposalThreshold", [
+        newThreshold,
+      ]),
+    ];
+    const description = "Lower proposal threshold to 30k";
+
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    // Execute threshold update
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+      { voter: voter2, support: 1 },
+    ]);
+    await queueProposal(governor, proposalData);
+
+    const lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + minDelay + 1n);
+    await executeProposal(governor, proposalData);
+
+    // Verify threshold was updated
+    threshold = await governor.proposalThreshold();
+    expect(threshold).to.equal(newThreshold);
+
+    // Mine blocks to ensure change is effective
+    await networkHelpers.mine(10);
+
+    // Now voter2 CANNOT create proposal (50k < 100k)
+    const {
+      targets: testTargets2,
+      values: testValues2,
+      calldatas: testCalldatas2,
+    } = await createCounterIncrementProposal(counter, 2n);
+
+    try {
+      await governor
+        .connect(voter2)
+        .propose(
+          testTargets2,
+          testValues2,
+          testCalldatas2,
+          "Test proposal - still below threshold"
+        );
+      expect.fail("Should have failed - voter2 still below 100k threshold");
+    } catch (error: any) {
+      expect(error.message.includes("GovernorInsufficientProposerVotes")).ok;
+    }
+
+    // But voter1 CAN create proposals (200k > 100k)
+    const { proposalId: newProposalId } = await createProposal(
+      governor,
+      testTargets2,
+      testValues2,
+      testCalldatas2,
+      "Test proposal after threshold change with voter1",
+      voter1
+    );
+
+    // Verify proposal was created successfully
+    let proposalState = await governor.state(newProposalId);
+    expect(proposalState).to.equal(ProposalState.Pending);
   });
 });

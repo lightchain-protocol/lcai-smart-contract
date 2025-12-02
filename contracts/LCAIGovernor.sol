@@ -12,6 +12,9 @@ import {
     GovernorVotesQuorumFraction
 } from "@openzeppelin/contracts/governance/extensions/GovernorVotesQuorumFraction.sol";
 import {
+    GovernorSettings
+} from "@openzeppelin/contracts/governance/extensions/GovernorSettings.sol";
+import {
     GovernorTimelockControl
 } from "@openzeppelin/contracts/governance/extensions/GovernorTimelockControl.sol";
 import {
@@ -25,11 +28,14 @@ contract LCAIGovernor is
     GovernorCountingSimple,
     GovernorVotes,
     GovernorVotesQuorumFraction,
+    GovernorSettings,
     GovernorTimelockControl,
     Pausable
 {
     // Admin address (multisig wallet for emergency actions)
     address public admin;
+    uint256 public constant MIN_QUORUM_NUMERATOR = 3;
+    uint256 public constant MAX_QUORUM_NUMERATOR = 15;
 
     // Events
     event AdminUpdated(address indexed previousAdmin, address indexed newAdmin);
@@ -42,6 +48,7 @@ contract LCAIGovernor is
     error UnauthorizedAdmin(address caller);
     error InvalidAdminAddress(address provided);
     error AdminMustBeContract(address provided);
+    error InvalidQuorumFraction(uint256 provided, uint256 min, uint256 max);
 
     // Modifiers
     modifier onlyAdmin() {
@@ -59,6 +66,7 @@ contract LCAIGovernor is
         Governor("LCAIGovernor")
         GovernorVotes(_token)
         GovernorVotesQuorumFraction(3)
+        GovernorSettings(7200, 100800, 140000 * 10 ** 18)
         GovernorTimelockControl(_timelock)
     {
         if (_admin == address(0)) {
@@ -72,19 +80,40 @@ contract LCAIGovernor is
         emit AdminUpdated(address(0), _admin);
     }
 
-    function votingDelay() public pure override returns (uint256) {
-        return 300; // 1 hour // 7200; // 1 day
-    }
-
-    function votingPeriod() public pure override returns (uint256) {
-        return 14400; // 2 days // 100800; // 14 days
-    }
-
-    function proposalThreshold() public pure override returns (uint256) {
-        return 140000 * 10 ** 18; // 140,000 tokens required to propose
+    /**
+     * @dev Override proposalThreshold to resolve inheritance conflict
+     */
+    function proposalThreshold()
+        public
+        view
+        override(Governor, GovernorSettings)
+        returns (uint256)
+    {
+        return super.proposalThreshold();
     }
 
     // ==================== Circuit Breaker Overrides ====================
+
+    /**
+     * @dev Updates the quorum numerator
+     * @notice Can only be called by the governance contract
+     * @param newQuorumNumerator The new quorum numerator (must be between MIN_QUORUM_NUMERATOR and MAX_QUORUM_NUMERATOR)
+     */
+    function updateQuorumNumerator(
+        uint256 newQuorumNumerator
+    ) external override onlyGovernance {
+        if (
+            newQuorumNumerator < MIN_QUORUM_NUMERATOR ||
+            newQuorumNumerator > MAX_QUORUM_NUMERATOR
+        ) {
+            revert InvalidQuorumFraction(
+                newQuorumNumerator,
+                MIN_QUORUM_NUMERATOR,
+                MAX_QUORUM_NUMERATOR
+            );
+        }
+        _updateQuorumNumerator(newQuorumNumerator);
+    }
 
     /**
      * @dev Override propose to add whenNotPaused check
