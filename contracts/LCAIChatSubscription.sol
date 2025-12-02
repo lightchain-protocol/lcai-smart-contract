@@ -346,8 +346,8 @@ contract LCAIChatSubscription is ReentrancyGuard, Pausable, Ownable {
      */
     function updatePaymentToken(
         address newPaymentToken,
-        uint256[3] calldata monthlyPrices,
-        uint256[3] calldata yearlyPrices
+        uint256[MAX_TIER + 1] calldata monthlyPrices,
+        uint256[MAX_TIER + 1] calldata yearlyPrices
     ) external onlyOwner {
         if (newPaymentToken == address(0)) revert InvalidAddress();
         if (newPaymentToken == address(paymentToken)) return;
