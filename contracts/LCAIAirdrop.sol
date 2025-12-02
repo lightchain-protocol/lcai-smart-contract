@@ -139,46 +139,4 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
         claimFee = _claimFee;
         emit ClaimFeeUpdated(oldFee, _claimFee);
     }
-
-    function setTreasury(address payable _treasury) external onlyOwner {
-        require(
-            _treasury != address(0),
-            "LCAIAirdrop: Invalid treasury address"
-        );
-        address oldTreasury = treasury;
-        treasury = _treasury;
-        emit TreasuryUpdated(oldTreasury, _treasury);
-    }
-
-    function withdrawFees(
-        address payable _to,
-        uint256 _amount
-    ) external onlyOwner nonReentrant {
-        require(_to != address(0), "LCAIAirdrop: Invalid recipient address");
-        require(_amount > 0, "LCAIAirdrop: Amount must be greater than 0");
-        require(
-            address(this).balance >= _amount,
-            "LCAIAirdrop: Insufficient ETH balance"
-        );
-
-        (bool success, ) = _to.call{value: _amount}("");
-        require(success, "LCAIAirdrop: ETH transfer failed");
-
-        emit FeesWithdrawn(_to, _amount);
-    }
-
-    function withdrawAllFees(
-        address payable _to
-    ) external onlyOwner nonReentrant {
-        require(_to != address(0), "LCAIAirdrop: Invalid recipient address");
-        uint256 balance = address(this).balance;
-        require(balance > 0, "LCAIAirdrop: No fees to withdraw");
-
-        (bool success, ) = _to.call{value: balance}("");
-        require(success, "LCAIAirdrop: ETH transfer failed");
-
-        emit FeesWithdrawn(_to, balance);
-    }
-
-    receive() external payable {}
 }
