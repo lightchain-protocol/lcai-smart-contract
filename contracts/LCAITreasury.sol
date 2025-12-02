@@ -112,7 +112,7 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
         emit ERC20Transferred(_token, _recipient, _amount);
     }
 
-    function deposit(address _token, uint256 _amount) external payable {
+    function deposit(address _token, uint256 _amount) external {
         require(_token != address(0), "LCAITreasury: Invalid token address");
         IERC20 token = IERC20(_token);
         token.safeTransferFrom(msg.sender, address(this), _amount);
