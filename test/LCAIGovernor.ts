@@ -2296,4 +2296,314 @@ describe("LCAIGovernor", function () {
     let proposalState = await governor.state(newProposalId);
     expect(proposalState).to.equal(ProposalState.Pending);
   });
+
+  // ==================== msg.value Validation Tests ====================
+
+  it("Should execute proposal with correct msg.value matching values array sum", async function () {
+    const { token, timelock, governor, counter, minDelay } =
+      await deployGovernanceContracts(60n);
+
+    await setupTimelockRoles(timelock, governor);
+
+    await distributeTokensAndDelegate(token, [
+      { voter: voter1, amount: "15000000" },
+      { voter: voter2, amount: "20000000" },
+    ]);
+
+    // Create proposal with ETH transfer (1 ETH) to voter3 address
+    const ethAmount = ethers.parseEther("1");
+    const targets = [voter3.address];
+    const values = [ethAmount];
+    const calldatas = ["0x"]; // Empty calldata for plain ETH transfer
+    const description = "Test execution with correct msg.value";
+
+    // Fund the timelock with ETH for the proposal
+    await deployer.sendTransaction({
+      to: await timelock.getAddress(),
+      value: ethAmount,
+    });
+
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+      { voter: voter2, support: 1 },
+    ]);
+
+    await queueProposal(governor, proposalData);
+
+    const lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + 60n + 1n);
+
+    // Check voter3 balance before
+    const balanceBefore = await ethers.provider.getBalance(voter3.address);
+
+    // Execute with correct msg.value (should succeed)
+    await governor.execute(
+      proposalData.targets,
+      proposalData.values,
+      proposalData.calldatas,
+      proposalData.descriptionHash,
+      { value: ethAmount }
+    );
+
+    // Verify ETH was transferred
+    const balanceAfter = await ethers.provider.getBalance(voter3.address);
+    expect(balanceAfter - balanceBefore).to.equal(ethAmount);
+
+    const executedState = await governor.state(proposalId);
+    expect(executedState).to.equal(ProposalState.Executed);
+  });
+
+  it("Should reject execution when msg.value is greater than values array sum", async function () {
+    const { token, timelock, governor, counter, minDelay } =
+      await deployGovernanceContracts(60n);
+
+    await setupTimelockRoles(timelock, governor);
+
+    await distributeTokensAndDelegate(token, [
+      { voter: voter1, amount: "15000000" },
+      { voter: voter2, amount: "20000000" },
+    ]);
+
+    // Create proposal with 1 ETH value
+    const ethAmount = ethers.parseEther("1");
+    const targets = [await counter.getAddress()];
+    const values = [ethAmount];
+    const calldatas = [counter.interface.encodeFunctionData("inc")];
+    const description = "Test execution with excessive msg.value";
+
+    // Fund the timelock
+    await deployer.sendTransaction({
+      to: await timelock.getAddress(),
+      value: ethAmount,
+    });
+
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+      { voter: voter2, support: 1 },
+    ]);
+
+    await queueProposal(governor, proposalData);
+
+    const lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + 60n + 1n);
+
+    // Try to execute with MORE msg.value than needed (should fail)
+    const excessiveValue = ethers.parseEther("2"); // 2 ETH instead of 1 ETH
+    try {
+      await governor.execute(
+        proposalData.targets,
+        proposalData.values,
+        proposalData.calldatas,
+        proposalData.descriptionHash,
+        { value: excessiveValue }
+      );
+      expect.fail("Should have reverted with InvalidValueSum");
+    } catch (error: any) {
+      expect(error.message).to.include("InvalidValueSum");
+    }
+  });
+
+  it("Should reject execution when msg.value is less than values array sum", async function () {
+    const { token, timelock, governor, counter, minDelay } =
+      await deployGovernanceContracts(60n);
+
+    await setupTimelockRoles(timelock, governor);
+
+    await distributeTokensAndDelegate(token, [
+      { voter: voter1, amount: "15000000" },
+      { voter: voter2, amount: "20000000" },
+    ]);
+
+    // Create proposal with 1 ETH value
+    const ethAmount = ethers.parseEther("1");
+    const targets = [await counter.getAddress()];
+    const values = [ethAmount];
+    const calldatas = [counter.interface.encodeFunctionData("inc")];
+    const description = "Test execution with insufficient msg.value";
+
+    // Fund the timelock
+    await deployer.sendTransaction({
+      to: await timelock.getAddress(),
+      value: ethAmount,
+    });
+
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+      { voter: voter2, support: 1 },
+    ]);
+
+    await queueProposal(governor, proposalData);
+
+    const lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + 60n + 1n);
+
+    // Try to execute with LESS msg.value than needed (should fail)
+    const insufficientValue = ethers.parseEther("0.5"); // 0.5 ETH instead of 1 ETH
+    try {
+      await governor.execute(
+        proposalData.targets,
+        proposalData.values,
+        proposalData.calldatas,
+        proposalData.descriptionHash,
+        { value: insufficientValue }
+      );
+      expect.fail("Should have reverted with InvalidValueSum");
+    } catch (error: any) {
+      expect(error.message).to.include("InvalidValueSum");
+    }
+  });
+
+  it("Should handle multiple values array entries and validate total msg.value", async function () {
+    const { token, timelock, governor, counter, minDelay } =
+      await deployGovernanceContracts(60n);
+
+    await setupTimelockRoles(timelock, governor);
+
+    await distributeTokensAndDelegate(token, [
+      { voter: voter1, amount: "15000000" },
+      { voter: voter2, amount: "20000000" },
+    ]);
+
+    // Create proposal with multiple ETH transfers (1 ETH + 0.5 ETH = 1.5 ETH total)
+    const ethAmount1 = ethers.parseEther("1");
+    const ethAmount2 = ethers.parseEther("0.5");
+    const totalAmount = ethAmount1 + ethAmount2;
+
+    // Get additional signer for receiving ETH (not involved in governance transactions)
+    const [, , , , recipient1] = await ethers.getSigners();
+
+    const targets = [
+      voter3.address,
+      recipient1.address,
+    ];
+    const values = [ethAmount1, ethAmount2];
+    const calldatas = [
+      "0x", // Empty calldata for plain ETH transfer
+      "0x",
+    ];
+    const description = "Test execution with multiple values";
+
+    // Fund the timelock
+    await deployer.sendTransaction({
+      to: await timelock.getAddress(),
+      value: totalAmount,
+    });
+
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+      { voter: voter2, support: 1 },
+    ]);
+
+    await queueProposal(governor, proposalData);
+
+    const lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + 60n + 1n);
+
+    // Check balances before
+    const voter3BalanceBefore = await ethers.provider.getBalance(voter3.address);
+    const recipient1BalanceBefore = await ethers.provider.getBalance(recipient1.address);
+
+    // Execute with correct total msg.value (should succeed)
+    await governor.execute(
+      proposalData.targets,
+      proposalData.values,
+      proposalData.calldatas,
+      proposalData.descriptionHash,
+      { value: totalAmount }
+    );
+
+    // Verify ETH was transferred to both addresses
+    const voter3BalanceAfter = await ethers.provider.getBalance(voter3.address);
+    const recipient1BalanceAfter = await ethers.provider.getBalance(recipient1.address);
+    expect(voter3BalanceAfter - voter3BalanceBefore).to.equal(ethAmount1);
+    expect(recipient1BalanceAfter - recipient1BalanceBefore).to.equal(ethAmount2);
+
+    const executedState = await governor.state(proposalId);
+    expect(executedState).to.equal(ProposalState.Executed);
+  });
+
+  it("Should allow execution with zero msg.value when values array is all zeros", async function () {
+    const { token, timelock, governor, counter, minDelay } =
+      await deployGovernanceContracts(60n);
+
+    await setupTimelockRoles(timelock, governor);
+
+    await distributeTokensAndDelegate(token, [
+      { voter: voter1, amount: "15000000" },
+      { voter: voter2, amount: "20000000" },
+    ]);
+
+    // Create proposal with no ETH transfer (all zeros)
+    const targets = [await counter.getAddress()];
+    const values = [0n];
+    const calldatas = [counter.interface.encodeFunctionData("inc")];
+    const description = "Test execution with zero values";
+
+    const { proposalId, proposalData } = await createProposal(
+      governor,
+      targets,
+      values,
+      calldatas,
+      description,
+      voter1
+    );
+
+    await advanceToVotingAndVote(governor, proposalId, [
+      { voter: voter1, support: 1 },
+      { voter: voter2, support: 1 },
+    ]);
+
+    await queueProposal(governor, proposalData);
+
+    const lastBlock = await ethers.provider.getBlockNumber();
+    await networkHelpers.mineUpTo(BigInt(lastBlock) + 60n + 1n);
+
+    // Execute with zero msg.value (should succeed)
+    await governor.execute(
+      proposalData.targets,
+      proposalData.values,
+      proposalData.calldatas,
+      proposalData.descriptionHash,
+      { value: 0n }
+    );
+
+    const executedState = await governor.state(proposalId);
+    expect(executedState).to.equal(ProposalState.Executed);
+  });
 });

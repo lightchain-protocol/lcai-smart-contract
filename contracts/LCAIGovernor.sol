@@ -49,6 +49,7 @@ contract LCAIGovernor is
     error InvalidAdminAddress(address provided);
     error AdminMustBeContract(address provided);
     error InvalidQuorumFraction(uint256 provided, uint256 min, uint256 max);
+    error InvalidValueSum(uint256 provided, uint256 expected);
 
     // Modifiers
     modifier onlyAdmin() {
@@ -140,7 +141,8 @@ contract LCAIGovernor is
     }
 
     /**
-     * @dev Override execute to add whenNotPaused check
+     * @dev Override execute to add whenNotPaused check and validate msg.value
+     * @notice Prevents accidental overpayment by ensuring msg.value matches sum of values array
      */
     function execute(
         address[] memory targets,
@@ -148,6 +150,17 @@ contract LCAIGovernor is
         bytes[] memory calldatas,
         bytes32 descriptionHash
     ) public payable override whenNotPaused returns (uint256) {
+        // Calculate expected total value
+        uint256 expectedValue = 0;
+        for (uint256 i = 0; i < values.length; i++) {
+            expectedValue += values[i];
+        }
+
+        // Ensure msg.value matches expected value to prevent accidental overpayment
+        if (msg.value != expectedValue) {
+            revert InvalidValueSum(msg.value, expectedValue);
+        }
+
         return super.execute(targets, values, calldatas, descriptionHash);
     }
 
