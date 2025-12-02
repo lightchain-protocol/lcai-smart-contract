@@ -121,7 +121,6 @@ contract LCAIChatSubscription is ReentrancyGuard, Pausable, Ownable {
     error InvalidDuration();
     error PlanNotActive();
     error IncorrectPayment();
-    error TreasuryNotSet();
     error InvalidAddress();
     error InvalidPrice();
     error HaveActiveSubscription();
@@ -205,7 +204,6 @@ contract LCAIChatSubscription is ReentrancyGuard, Pausable, Ownable {
     ) external whenNotPaused nonReentrant {
         if (tier > MAX_TIER) revert InvalidTier();
         if (duration > DURATION_YEARLY) revert InvalidDuration();
-        if (treasury == address(0)) revert TreasuryNotSet();
 
         Subscription storage sub = subscriptions[msg.sender];
 
