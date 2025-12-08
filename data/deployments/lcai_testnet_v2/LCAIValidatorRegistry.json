@@ -2,5 +2,7 @@
   "address": "0x79C3473d3249fb3a70E2D3e386e9C45abE62752D",
   "chain": "lcai_testnet_v2",
   "deployedBy": "0xf8CaD5057DFF9bDeda057Fb8393565CAE2C24fBf",
-  "ts": 1765186978397
+  "timestamp": "2025-12-08T12:45:37.368Z",
+  "ts": 1765197937370,
+  "txHash": "0xc6f0d1d9d51e1d099708c15e5133f0ba23bc7f149a2d38cad593f90492aa1a6f"
 }
