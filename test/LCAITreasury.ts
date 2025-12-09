@@ -1,12 +1,24 @@
 import { expect } from "chai";
-import { network } from "hardhat";
+import hre from "hardhat";
 import { parseEther } from "ethers";
 
-const { ethers, networkHelpers } = await network.connect();
-const [deployer, admin, recipient1, recipient2, recipient3, nonAdmin] =
-  await ethers.getSigners();
+const { network } = hre;
+let ethers: typeof hre.ethers;
+let networkHelpers: any;
+let deployer: any;
+let admin: any;
+let recipient1: any;
+let recipient2: any;
+let recipient3: any;
+let nonAdmin: any;
 
 describe("LCAITreasury", function () {
+  before(async function () {
+    ({ ethers, networkHelpers } = await network.connect());
+    [deployer, admin, recipient1, recipient2, recipient3, nonAdmin] =
+      await ethers.getSigners();
+  });
+
   // ===== HELPER FUNCTIONS =====
 
   async function deployLCAITreasuryContracts() {

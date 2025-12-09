@@ -1,7 +1,12 @@
 import { expect } from "chai";
-import { network } from "hardhat";
+import hre from "hardhat";
 
-const { ethers } = await network.connect();
+const { network } = hre;
+let ethers: typeof hre.ethers;
+
+before(async function () {
+  ({ ethers } = await network.connect());
+});
 describe("WLCAI", async function () {
   it("Should deploy with correct name and symbol", async function () {
     const wrappedETH = await ethers.deployContract("WLCAI");

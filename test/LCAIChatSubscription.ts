@@ -1,12 +1,26 @@
 import { expect } from "chai";
-import { network } from "hardhat";
+import hre from "hardhat";
 import { parseEther } from "ethers";
 
-const { ethers, networkHelpers } = await network.connect();
-const [deployer, timelock, admin, treasury, user1, user2, user3, nonAdmin] =
-  await ethers.getSigners();
+const { network } = hre;
+let ethers: typeof hre.ethers;
+let networkHelpers: any;
+let deployer: any;
+let timelock: any;
+let admin: any;
+let treasury: any;
+let user1: any;
+let user2: any;
+let user3: any;
+let nonAdmin: any;
 
 describe("LCAIChatSubscription", function () {
+  before(async function () {
+    ({ ethers, networkHelpers } = await network.connect());
+    [deployer, timelock, admin, treasury, user1, user2, user3, nonAdmin] =
+      await ethers.getSigners();
+  });
+
   // ===== CONSTANTS =====
   const TIER_1 = 0n;
   const TIER_2 = 1n;

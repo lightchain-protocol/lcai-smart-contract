@@ -1,5 +1,7 @@
 import { expect } from "chai";
-import { network } from "hardhat";
+import hre from "hardhat";
+
+const { network } = hre;
 
 describe("Counter", function () {
   it("Should emit the Increment event when calling the inc() function", async function () {

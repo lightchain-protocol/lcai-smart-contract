@@ -4,9 +4,13 @@
   "type": "module",
   "scripts": {
     "compile": "hardhat compile",
+    "test": "npx node@22.10.0 ./node_modules/.bin/hardhat test",
     "deploy:testnet": "hardhat run scripts/deployment/deploy-smart-contracts.ts --network lcai_testnet_v2",
     "deploy:testnet:treasury": "hardhat run scripts/deployment/deploy-lcai-treasury.ts --network lcai_testnet_v2",
     "deploy:testnet:chat-subscription": "hardhat run scripts/deployment/deploy-lcai-chat-subscription.ts --network lcai_testnet_v2"
+  },
+  "engines": {
+    "node": ">=22 <23"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ignition": "^3.0.3",

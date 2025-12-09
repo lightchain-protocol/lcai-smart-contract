@@ -1,12 +1,15 @@
 import { expect } from "chai";
-import "@nomicfoundation/hardhat-chai-matchers";
+import "@nomicfoundation/hardhat-ethers-chai-matchers";
+import hre from "hardhat";
 
-/// <reference types="hardhat/types" />
-/// <reference types="mocha" />
-
-declare var ethers: any;
+const { network } = hre;
+let ethers: typeof hre.ethers;
 
 describe("ChallengeBondEscrow", function () {
+  before(async function () {
+    ({ ethers } = await network.connect());
+  });
+
   it("posts, refunds, and slashes bonds with proper gating", async function () {
     const [deployer, resolver, challenger, treasury, other] = await ethers.getSigners();
 
@@ -47,8 +50,9 @@ describe("ChallengeBondEscrow", function () {
     const challengeId2 = ethers.keccak256(ethers.toUtf8Bytes("challenge-2"));
     await escrow.connect(challenger).postBond(challengeId2, { value: minBond });
     const treasuryBalBefore = await ethers.provider.getBalance(treasury.address);
-    await expect(escrow.connect(resolver).slashBond(challengeId2, ethers.ZeroAddress))
-      .to.emit(escrow, "BondSlashed");
+    await expect(escrow.connect(resolver).slashBond(challengeId2, treasury.address, minBond))
+      .to.emit(escrow, "BondSlashed")
+      .withArgs(challengeId2, treasury.address, minBond);
     const treasuryBalAfter = await ethers.provider.getBalance(treasury.address);
     expect(treasuryBalAfter - treasuryBalBefore).to.equal(minBond);
 
@@ -60,4 +64,3 @@ describe("ChallengeBondEscrow", function () {
     await escrow.connect(deployer).unpause();
   });
 });
-

@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { network } from "hardhat";
+import hre from "hardhat";
 import { LCAIGovernor } from "../types/ethers-contracts/LCAIGovernor.js";
 import { Counter } from "../types/ethers-contracts/Counter.js";
 import { PresaleVotingPower } from "../types/ethers-contracts/PresaleVotingPower.js";
@@ -23,10 +23,20 @@ interface ProposalData {
   descriptionHash: string;
 }
 
-const { ethers, networkHelpers } = await network.connect();
-const [deployer, voter1, voter2, voter3] = await ethers.getSigners();
+const { network } = hre;
+let ethers: typeof hre.ethers;
+let networkHelpers: any;
+let deployer: any;
+let voter1: any;
+let voter2: any;
+let voter3: any;
 
 describe("LCAIGovernor", function () {
+  before(async function () {
+    ({ ethers, networkHelpers } = await network.connect());
+    [deployer, voter1, voter2, voter3] = await ethers.getSigners();
+  });
+
   // ===== HELPER FUNCTIONS =====
   // These functions extract common patterns to reduce code duplication
   // and make tests more maintainable and readable

@@ -1,11 +1,21 @@
 import { expect } from "chai";
-import { network } from "hardhat";
+import hre from "hardhat";
 import { parseEther } from "ethers";
 
-const { ethers } = await network.connect();
-const [owner, buyer1, buyer2, buyer3, treasury] = await ethers.getSigners();
+const { network } = hre;
+let ethers: typeof hre.ethers;
+let owner: any;
+let buyer1: any;
+let buyer2: any;
+let buyer3: any;
+let treasury: any;
 
 describe("LCAIAirdrop", function () {
+  before(async function () {
+    ({ ethers } = await network.connect());
+    [owner, buyer1, buyer2, buyer3, treasury] = await ethers.getSigners();
+  });
+
   // ===== HELPER FUNCTIONS =====
 
   async function deployFixture() {

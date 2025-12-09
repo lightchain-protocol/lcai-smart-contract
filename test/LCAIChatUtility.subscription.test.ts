@@ -1,7 +1,9 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import hre from "hardhat";
 import type { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 
+const { network } = hre;
+let ethers: typeof hre.ethers;
 describe("LCAIChatUtility - Subscription System", function () {
   let chatUtility: any;
   let owner: SignerWithAddress;
@@ -9,13 +11,22 @@ describe("LCAIChatUtility - Subscription System", function () {
   let user2: SignerWithAddress;
   let treasury: SignerWithAddress;
 
-  const INITIAL_CHAT_FEE = ethers.parseEther("0.001");
-  const BASE_REWARD = ethers.parseEther("0.0001");
+  // Set after ethers is initialized in beforeEach
+  let INITIAL_CHAT_FEE: bigint;
+  let BASE_REWARD: bigint;
   const EPOCH_DURATION = 86400; // 1 day
-  const MAX_REWARD_PER_EPOCH = ethers.parseEther("1");
+  let MAX_REWARD_PER_EPOCH: bigint;
+
+  before(async function () {
+    ({ ethers } = await network.connect());
+  });
 
   beforeEach(async function () {
     [owner, user1, user2, treasury] = await ethers.getSigners();
+
+    INITIAL_CHAT_FEE = ethers.parseEther("0.001");
+    BASE_REWARD = ethers.parseEther("0.0001");
+    MAX_REWARD_PER_EPOCH = ethers.parseEther("1");
 
     const LCAIChatUtilityFactory = await ethers.getContractFactory("LCAIChatUtility");
     chatUtility = await LCAIChatUtilityFactory.deploy(
@@ -206,13 +217,17 @@ describe("LCAIChatUtility - Subscription System", function () {
     it("Should reject non-owner updating subscription plan", async function () {
       await expect(
         chatUtility.connect(user1).updateSubscriptionPlan(0, 2500, 24000, 10000, "base")
-      ).to.be.reverted;
+      )
+        .to.be.revertedWithCustomError(chatUtility, "OwnableUnauthorizedAccount")
+        .withArgs(user1.address);
     });
 
     it("Should reject non-owner setting treasury", async function () {
       await expect(
         chatUtility.connect(user1).setTreasuryAddress(treasury.address)
-      ).to.be.reverted;
+      )
+        .to.be.revertedWithCustomError(chatUtility, "OwnableUnauthorizedAccount")
+        .withArgs(user1.address);
     });
   });
 
@@ -244,4 +259,3 @@ describe("LCAIChatUtility - Subscription System", function () {
     });
   });
 });
-

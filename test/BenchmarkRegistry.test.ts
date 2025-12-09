@@ -1,8 +1,15 @@
 import { expect } from "chai";
-import { network } from "hardhat";
+import hre from "hardhat";
 
-const { ethers } = await network.connect();
-const [owner, curator] = await ethers.getSigners();
+const { network } = hre;
+let ethers: typeof hre.ethers;
+let owner: any;
+let curator: any;
+
+before(async function () {
+  ({ ethers } = await network.connect());
+  [owner, curator] = await ethers.getSigners();
+});
 
 describe("BenchmarkRegistry", function () {
   async function deployBenchmarkRegistry() {
@@ -246,4 +253,3 @@ describe("BenchmarkRegistry", function () {
     });
   });
 });
-

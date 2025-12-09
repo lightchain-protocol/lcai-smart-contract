@@ -1,10 +1,17 @@
 import { expect } from "chai";
-import { network } from "hardhat";
+import hre from "hardhat";
 
-const { ethers } = await network.connect();
-const [owner, alice] = await ethers.getSigners();
+const { network } = hre;
+let ethers: typeof hre.ethers;
+let owner: any;
+let alice: any;
 
 describe("AIVMTicketManager", function () {
+  before(async function () {
+    ({ ethers } = await network.connect());
+    [owner, alice] = await ethers.getSigners();
+  });
+
   async function deployTicketManager() {
     const ticketManager = await ethers.deployContract("AIVMTicketManager");
     await ticketManager.waitForDeployment();

@@ -1,14 +1,27 @@
 import { expect } from "chai";
-import { network } from "hardhat";
+import hre from "hardhat";
 import { parseEther } from "ethers";
 
-const { ethers, networkHelpers } = await network.connect();
-const [owner, trainer, validator1, validator2, validator3, challenger, treasury] =
-  await ethers.getSigners();
+const { network } = hre;
+let ethers: typeof hre.ethers;
+let networkHelpers: any;
+let owner: any;
+let trainer: any;
+let validator1: any;
+let validator2: any;
+let validator3: any;
+let challenger: any;
+let treasury: any;
 
 describe("AIVMModelRegistry", function () {
   const TRAINER_STAKE_MIN = parseEther("100");
   const VALIDATOR_STAKE_MIN = parseEther("50");
+
+  before(async function () {
+    ({ ethers, networkHelpers } = await network.connect());
+    [owner, trainer, validator1, validator2, validator3, challenger, treasury] =
+      await ethers.getSigners();
+  });
 
   async function deployModelRegistry() {
     const modelRegistry = await ethers.deployContract("AIVMModelRegistry", [
