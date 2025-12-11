@@ -19,7 +19,12 @@ contract AIVMTicketManager is Ownable, ReentrancyGuard {
 
     mapping(bytes32 => Ticket) private tickets;
 
-    event TicketIssued(bytes32 indexed ticketId, address indexed wallet, string variantId, uint256 expiresAt);
+    event TicketIssued(
+        bytes32 indexed ticketId,
+        address indexed wallet,
+        string variantId,
+        uint256 expiresAt
+    );
     event TicketRevoked(bytes32 indexed ticketId);
 
     constructor() Ownable(msg.sender) {}
@@ -30,11 +35,17 @@ contract AIVMTicketManager is Ownable, ReentrancyGuard {
      * @param variantId Variant for which access is being granted
      * @param ttl Ticket validity in seconds (0 => no expiry hint)
      */
-    function issueTicket(address wallet, string calldata variantId, uint256 ttl) external onlyOwner returns (bytes32) {
+    function issueTicket(
+        address wallet,
+        string calldata variantId,
+        uint256 ttl
+    ) external onlyOwner returns (bytes32) {
         require(wallet != address(0), "Invalid wallet");
         require(bytes(variantId).length > 0, "Variant required");
 
-        bytes32 ticketId = keccak256(abi.encode(wallet, variantId, block.timestamp, block.number));
+        bytes32 ticketId = keccak256(
+            abi.encode(wallet, variantId, block.timestamp, block.number)
+        );
         uint256 expiresAt = ttl == 0 ? 0 : block.timestamp + ttl;
 
         tickets[ticketId] = Ticket({
@@ -51,7 +62,11 @@ contract AIVMTicketManager is Ownable, ReentrancyGuard {
     /**
      * @notice Validate a ticket for a specific wallet and variant.
      */
-    function validateTicket(bytes32 ticketId, address wallet, string calldata variantId) external view returns (bool) {
+    function validateTicket(
+        bytes32 ticketId,
+        address wallet,
+        string calldata variantId
+    ) external view returns (bool) {
         Ticket memory ticket = tickets[ticketId];
         if (ticket.revoked) {
             return false;

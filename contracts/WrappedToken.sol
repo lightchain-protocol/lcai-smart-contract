@@ -35,11 +35,7 @@ contract WrappedToken is ERC20, ERC20Permit, ERC20Votes, ERC20Wrapper {
         IERC20 underlyingToken,
         string memory name,
         string memory symbol
-    )
-        ERC20(name, symbol)
-        ERC20Permit(name)
-        ERC20Wrapper(underlyingToken)
-    {}
+    ) ERC20(name, symbol) ERC20Permit(name) ERC20Wrapper(underlyingToken) {}
 
     /**
      * @dev Overrides required by Solidity for multiple inheritance

@@ -49,10 +49,7 @@ contract BenchmarkRegistry is Ownable {
         string taskType
     );
 
-    event BenchmarkStatusUpdated(
-        string indexed benchmarkId,
-        bool active
-    );
+    event BenchmarkStatusUpdated(string indexed benchmarkId, bool active);
 
     constructor() Ownable(msg.sender) {}
 
@@ -85,7 +82,10 @@ contract BenchmarkRegistry is Ownable {
         require(bytes(benchmarkCID).length > 0, "Benchmark CID required");
         require(bytes(metadataCID).length > 0, "Metadata CID required");
         require(bytes(manifestHash).length > 0, "Manifest hash required");
-        require(bytes(benchmarks[benchmarkId].benchmarkId).length == 0, "Benchmark exists");
+        require(
+            bytes(benchmarks[benchmarkId].benchmarkId).length == 0,
+            "Benchmark exists"
+        );
 
         if (encrypted) {
             require(bytes(wrappedDEK).length > 0, "Wrapped DEK required");
@@ -115,7 +115,13 @@ contract BenchmarkRegistry is Ownable {
             emit BenchmarkAssignmentUpdated(benchmarkId, domain, taskType);
         }
 
-        emit BenchmarkRegistered(benchmarkId, domain, taskType, benchmarkCID, encrypted);
+        emit BenchmarkRegistered(
+            benchmarkId,
+            domain,
+            taskType,
+            benchmarkCID,
+            encrypted
+        );
     }
 
     /**
@@ -128,7 +134,10 @@ contract BenchmarkRegistry is Ownable {
     ) external onlyOwner {
         require(bytes(domain).length > 0, "Domain required");
         require(bytes(taskType).length > 0, "Task required");
-        require(bytes(benchmarks[benchmarkId].benchmarkId).length > 0, "Benchmark missing");
+        require(
+            bytes(benchmarks[benchmarkId].benchmarkId).length > 0,
+            "Benchmark missing"
+        );
         require(benchmarks[benchmarkId].active, "Benchmark inactive");
 
         bytes32 assignmentKey = _assignmentKey(domain, taskType);
@@ -139,8 +148,14 @@ contract BenchmarkRegistry is Ownable {
     /**
      * @notice Toggle benchmark active state.
      */
-    function setBenchmarkActive(string calldata benchmarkId, bool active) external onlyOwner {
-        require(bytes(benchmarks[benchmarkId].benchmarkId).length > 0, "Benchmark missing");
+    function setBenchmarkActive(
+        string calldata benchmarkId,
+        bool active
+    ) external onlyOwner {
+        require(
+            bytes(benchmarks[benchmarkId].benchmarkId).length > 0,
+            "Benchmark missing"
+        );
         benchmarks[benchmarkId].active = active;
         emit BenchmarkStatusUpdated(benchmarkId, active);
     }
@@ -148,22 +163,31 @@ contract BenchmarkRegistry is Ownable {
     /**
      * @notice Fetch benchmark struct by identifier.
      */
-    function getBenchmark(string calldata benchmarkId) external view returns (Benchmark memory) {
-        require(bytes(benchmarks[benchmarkId].benchmarkId).length > 0, "Benchmark missing");
+    function getBenchmark(
+        string calldata benchmarkId
+    ) external view returns (Benchmark memory) {
+        require(
+            bytes(benchmarks[benchmarkId].benchmarkId).length > 0,
+            "Benchmark missing"
+        );
         return benchmarks[benchmarkId];
     }
 
     /**
      * @notice List benchmarks assigned to a domain.
      */
-    function listBenchmarksByDomain(string calldata domain) external view returns (string[] memory) {
+    function listBenchmarksByDomain(
+        string calldata domain
+    ) external view returns (string[] memory) {
         return _copyStringArray(benchmarksByDomain[domain]);
     }
 
     /**
      * @notice List benchmarks assigned to the provided task type.
      */
-    function listBenchmarksByTask(string calldata taskType) external view returns (string[] memory) {
+    function listBenchmarksByTask(
+        string calldata taskType
+    ) external view returns (string[] memory) {
         return _copyStringArray(benchmarksByTask[taskType]);
     }
 
@@ -184,7 +208,9 @@ contract BenchmarkRegistry is Ownable {
     ) external view returns (string memory) {
         require(bytes(domain).length > 0, "Domain required");
         require(bytes(taskType).length > 0, "Task required");
-        string memory benchmarkId = defaultAssignments[_assignmentKey(domain, taskType)];
+        string memory benchmarkId = defaultAssignments[
+            _assignmentKey(domain, taskType)
+        ];
         require(bytes(benchmarkId).length > 0, "No benchmark assigned");
         require(benchmarks[benchmarkId].active, "Assigned benchmark inactive");
         return benchmarkId;
@@ -193,7 +219,9 @@ contract BenchmarkRegistry is Ownable {
     /**
      * @notice Helper to copy storage-backed string arrays to memory.
      */
-    function _copyStringArray(string[] storage source) private view returns (string[] memory) {
+    function _copyStringArray(
+        string[] storage source
+    ) private view returns (string[] memory) {
         string[] memory result = new string[](source.length);
         for (uint256 i = 0; i < source.length; i++) {
             result[i] = source[i];
@@ -201,8 +229,10 @@ contract BenchmarkRegistry is Ownable {
         return result;
     }
 
-    function _assignmentKey(string calldata domain, string calldata taskType) private pure returns (bytes32) {
+    function _assignmentKey(
+        string calldata domain,
+        string calldata taskType
+    ) private pure returns (bytes32) {
         return keccak256(abi.encodePacked(domain, "::", taskType));
     }
 }
-

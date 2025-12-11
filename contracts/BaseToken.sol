@@ -14,10 +14,7 @@ contract BaseToken is ERC20 {
      * @param name The name of the token
      * @param symbol The symbol of the token
      */
-    constructor(
-        string memory name,
-        string memory symbol
-    ) ERC20(name, symbol) {
+    constructor(string memory name, string memory symbol) ERC20(name, symbol) {
         _mint(msg.sender, 1_000_000_000 * 1e18);
     }
 }

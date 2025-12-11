@@ -8,32 +8,39 @@ pragma solidity ^0.8.20;
 contract LCAIValidatorRegistry {
     struct Validator {
         address validatorAddress;
-        bytes publicKey;        // BLS public key
-        uint256 stake;          // Staked amount
-        bool isActive;          // Active status
+        bytes publicKey; // BLS public key
+        uint256 stake; // Staked amount
+        bool isActive; // Active status
         uint256 performanceScore;
         uint256 slashCount;
         uint256 lastHeartbeat;
         uint256 joinedAt;
     }
-    
+
     mapping(address => Validator) public validators;
     address[] public validatorList;
-    
+
     // Events
-    event ValidatorRegistered(address indexed validator, bytes publicKey, uint256 stake);
+    event ValidatorRegistered(
+        address indexed validator,
+        bytes publicKey,
+        uint256 stake
+    );
     event ValidatorActivated(address indexed validator);
     event ValidatorDeactivated(address indexed validator);
     event StakeUpdated(address indexed validator, uint256 newStake);
-    
+
     // Access control would normally be here (e.g., onlyOwner), but keeping simple for this task
-    
+
     /**
      * @dev Registers a new validator.
      * @param publicKey The BLS public key of the validator.
      */
     function registerValidator(bytes calldata publicKey) external payable {
-        require(validators[msg.sender].validatorAddress == address(0), "Validator already registered");
+        require(
+            validators[msg.sender].validatorAddress == address(0),
+            "Validator already registered"
+        );
         require(msg.value > 0, "Stake required"); // Minimal check, real logic would check min stake
 
         Validator memory newValidator = Validator({
@@ -60,7 +67,10 @@ contract LCAIValidatorRegistry {
      */
     function activateValidator(address validator) external {
         // In a real system, this might be restricted
-        require(validators[validator].validatorAddress != address(0), "Validator not found");
+        require(
+            validators[validator].validatorAddress != address(0),
+            "Validator not found"
+        );
         validators[validator].isActive = true;
         emit ValidatorActivated(validator);
     }
@@ -71,7 +81,10 @@ contract LCAIValidatorRegistry {
      */
     function deactivateValidator(address validator) external {
         // In a real system, this might be restricted
-        require(validators[validator].validatorAddress != address(0), "Validator not found");
+        require(
+            validators[validator].validatorAddress != address(0),
+            "Validator not found"
+        );
         validators[validator].isActive = false;
         emit ValidatorDeactivated(validator);
     }
@@ -83,7 +96,10 @@ contract LCAIValidatorRegistry {
      */
     function updateStake(address validator, uint256 newStake) external {
         // In a real system, this might be restricted or handle transfers
-        require(validators[validator].validatorAddress != address(0), "Validator not found");
+        require(
+            validators[validator].validatorAddress != address(0),
+            "Validator not found"
+        );
         validators[validator].stake = newStake;
         emit StakeUpdated(validator, newStake);
     }
@@ -92,7 +108,9 @@ contract LCAIValidatorRegistry {
      * @dev Returns validator details.
      * @param validator The address of the validator.
      */
-    function getValidator(address validator) external view returns (Validator memory) {
+    function getValidator(
+        address validator
+    ) external view returns (Validator memory) {
         return validators[validator];
     }
 

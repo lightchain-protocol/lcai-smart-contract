@@ -10,7 +10,12 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 /// @notice Minimal escrow for fraud-challenge bonds in the PoI dispute flow.
 /// @dev Owner is expected to be LCAITimeLock; resolver role is granted to a
 ///      DAO-controlled executor or a dedicated service that settles disputes.
-contract ChallengeBondEscrow is Ownable, ReentrancyGuard, Pausable, AccessControl {
+contract ChallengeBondEscrow is
+    Ownable,
+    ReentrancyGuard,
+    Pausable,
+    AccessControl
+{
     bytes32 public constant RESOLVER_ROLE = keccak256("RESOLVER_ROLE");
 
     struct Bond {
@@ -30,9 +35,23 @@ contract ChallengeBondEscrow is Ownable, ReentrancyGuard, Pausable, AccessContro
     uint256 public challengeWindowSecs; // window length recorded on post
     address public treasury; // beneficiary for slashed bonds (e.g., LCAITreasury)
 
-    event BondPosted(bytes32 indexed challengeId, address indexed challenger, uint256 amount, uint256 postedAt, uint256 expiresAt);
-    event BondRefunded(bytes32 indexed challengeId, address indexed to, uint256 amount);
-    event BondSlashed(bytes32 indexed challengeId, address indexed beneficiary, uint256 amount);
+    event BondPosted(
+        bytes32 indexed challengeId,
+        address indexed challenger,
+        uint256 amount,
+        uint256 postedAt,
+        uint256 expiresAt
+    );
+    event BondRefunded(
+        bytes32 indexed challengeId,
+        address indexed to,
+        uint256 amount
+    );
+    event BondSlashed(
+        bytes32 indexed challengeId,
+        address indexed beneficiary,
+        uint256 amount
+    );
 
     error InvalidAmount();
     error BondExists();
@@ -69,7 +88,9 @@ contract ChallengeBondEscrow is Ownable, ReentrancyGuard, Pausable, AccessContro
 
     /// @notice Post a bond for a given challenge ID.
     /// @dev Requires msg.value >= minBond and no prior bond posted for this ID.
-    function postBond(bytes32 challengeId) external payable whenNotPaused nonReentrant {
+    function postBond(
+        bytes32 challengeId
+    ) external payable whenNotPaused nonReentrant {
         if (msg.value < minBond) revert InvalidAmount();
         Bond storage b = bonds[challengeId];
         if (b.amount != 0) revert BondExists();
@@ -90,7 +111,10 @@ contract ChallengeBondEscrow is Ownable, ReentrancyGuard, Pausable, AccessContro
     }
 
     /// @notice Refund a bond to a recipient. Only callable by RESOLVER_ROLE.
-    function refundBond(bytes32 challengeId, address to) external whenNotPaused nonReentrant onlyRole(RESOLVER_ROLE) {
+    function refundBond(
+        bytes32 challengeId,
+        address to
+    ) external whenNotPaused nonReentrant onlyRole(RESOLVER_ROLE) {
         if (to == address(0)) revert ZeroAddress();
         Bond storage b = bonds[challengeId];
         if (b.refunded || b.slashed) revert AlreadySettled();
@@ -108,7 +132,11 @@ contract ChallengeBondEscrow is Ownable, ReentrancyGuard, Pausable, AccessContro
 
     /// @notice Slash a bond by `amount` and send funds to a beneficiary (or default treasury).
     /// @dev Only callable by RESOLVER_ROLE. Supports partial slashing; remaining amount stays locked.
-    function slashBond(bytes32 challengeId, address beneficiary, uint256 amount) external whenNotPaused nonReentrant onlyRole(RESOLVER_ROLE) {
+    function slashBond(
+        bytes32 challengeId,
+        address beneficiary,
+        uint256 amount
+    ) external whenNotPaused nonReentrant onlyRole(RESOLVER_ROLE) {
         Bond storage b = bonds[challengeId];
         if (b.refunded) revert AlreadySettled();
         if (b.amount == 0) revert BondNotFound();
@@ -150,8 +178,12 @@ contract ChallengeBondEscrow is Ownable, ReentrancyGuard, Pausable, AccessContro
         }
     }
 
-    function pause() external onlyOwner { _pause(); }
-    function unpause() external onlyOwner { _unpause(); }
+    function pause() external onlyOwner {
+        _pause();
+    }
+    function unpause() external onlyOwner {
+        _unpause();
+    }
 
     // ----------------- Views -----------------
 

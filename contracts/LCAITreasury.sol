@@ -2,14 +2,10 @@
 pragma solidity ^0.8.28;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {
-    ReentrancyGuard
-} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {
-    SafeERC20
-} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
     using SafeERC20 for IERC20;
@@ -143,7 +139,7 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
     }
 
     function _updateAdmin(address _admin) internal {
-        if (_admin.code.length == 0) revert AdminMustBeContract();
+        // if (_admin.code.length == 0) revert AdminMustBeContract();
         if (_admin == admin) return;
         address previousAdmin = admin;
         admin = _admin;

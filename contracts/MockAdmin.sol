@@ -18,9 +18,14 @@ contract MockAdmin {
      * @param target The address to call
      * @param data The calldata to send
      */
-    function execute(address target, bytes calldata data) external payable returns (bytes memory) {
+    function execute(
+        address target,
+        bytes calldata data
+    ) external payable returns (bytes memory) {
         require(msg.sender == owner, "MockAdmin: caller is not the owner");
-        (bool success, bytes memory result) = target.call{value: msg.value}(data);
+        (bool success, bytes memory result) = target.call{value: msg.value}(
+            data
+        );
         require(success, "MockAdmin: execution failed");
         return result;
     }
@@ -28,4 +33,3 @@ contract MockAdmin {
     // Allow receiving ETH
     receive() external payable {}
 }
-

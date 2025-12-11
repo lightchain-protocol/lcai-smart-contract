@@ -4,14 +4,18 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 interface IAIVMTicketManager {
-    function issueTicket(address wallet, string memory variantId, uint256 ttl) external returns (bytes32);
+    function issueTicket(
+        address wallet,
+        string memory variantId,
+        uint256 ttl
+    ) external returns (bytes32);
 }
 
 /**
  * @title AIVMModelRegistry
  * @notice On-chain registry for AI model variants with validation and staking mechanics
  * @dev Implements the AIVM workflow: submission → validation → approval → finalization
- * 
+ *
  * Workflow (from Raspberry Pi's flowchart):
  * 1. Trainer stakes tokens to submit variant
  * 2. Variant submitted with IPFS CID
@@ -24,69 +28,68 @@ interface IAIVMTicketManager {
  * 9. Finalization (variant available for chat/inference)
  */
 contract AIVMModelRegistry is ReentrancyGuard {
-    
     // ============================================================================
     // ENUMS & STRUCTS
     // ============================================================================
-    
+
     enum ModelStatus {
-        Submitted,      // Variant submitted, awaiting validation
-        Validating,     // Validators assigned, evaluation in progress
-        Approved,       // avgScore >= minScore, in challenge window
-        Rejected,       // avgScore < minScore or failed safety
-        Finalized,      // Challenge window passed, approved for use
-        Deprecated      // No longer recommended (policy change)
+        Submitted, // Variant submitted, awaiting validation
+        Validating, // Validators assigned, evaluation in progress
+        Approved, // avgScore >= minScore, in challenge window
+        Rejected, // avgScore < minScore or failed safety
+        Finalized, // Challenge window passed, approved for use
+        Deprecated // No longer recommended (policy change)
     }
-    
+
     struct BaseModel {
-        string modelId;           // Unique identifier (e.g., "base-001")
-        string baseModelCID;      // IPFS CID for model weights
-        string metadataHash;      // IPFS hash for model card/metadata
-        string policyVersion;     // Policy version used for validation
-        string benchmarkCID;      // IPFS CID for benchmark definitions
-        uint256 createdAt;        // Timestamp
-        bool isActive;            // Whether this base model is active
+        string modelId; // Unique identifier (e.g., "base-001")
+        string baseModelCID; // IPFS CID for model weights
+        string metadataHash; // IPFS hash for model card/metadata
+        string policyVersion; // Policy version used for validation
+        string benchmarkCID; // IPFS CID for benchmark definitions
+        uint256 createdAt; // Timestamp
+        bool isActive; // Whether this base model is active
     }
-    
+
     struct ModelVariant {
-        string variantId;         // Unique identifier (e.g., "var-123")
-        string variantCID;        // IPFS CID for variant weights
-        string metadataHash;      // IPFS hash for variant metadata
-        string parentModelId;     // Reference to base model
-        address trainer;          // Address of trainer who submitted
-        uint256 trainerStake;     // Amount staked by trainer
-        ModelStatus status;       // Current status
-        uint256 avgScore;         // Average validation score (0-100, scaled by 100)
-        string reportCID;         // IPFS CID for validation report
-        uint256 submittedAt;      // Submission timestamp
-        uint256 validatedAt;      // Validation completion timestamp
-        uint256 finalizedAt;      // Finalization timestamp
-        uint256 validatorCount;   // Number of validators who evaluated
+        string variantId; // Unique identifier (e.g., "var-123")
+        string variantCID; // IPFS CID for variant weights
+        string metadataHash; // IPFS hash for variant metadata
+        string parentModelId; // Reference to base model
+        address trainer; // Address of trainer who submitted
+        uint256 trainerStake; // Amount staked by trainer
+        ModelStatus status; // Current status
+        uint256 avgScore; // Average validation score (0-100, scaled by 100)
+        string reportCID; // IPFS CID for validation report
+        uint256 submittedAt; // Submission timestamp
+        uint256 validatedAt; // Validation completion timestamp
+        uint256 finalizedAt; // Finalization timestamp
+        uint256 validatorCount; // Number of validators who evaluated
         bool challengeWindowOpen; // Whether challenge window is active
         uint256 challengeDeadline; // Challenge window end time
     }
-    
+
     struct ValidatorStake {
         address validator;
         uint256 amount;
         uint256 stakedAt;
-        bool hasSubmitted;      // Whether validator submitted score
-        bool isSlashed;         // Whether stake was slashed for fraud
+        bool hasSubmitted; // Whether validator submitted score
+        bool isSlashed; // Whether stake was slashed for fraud
     }
-    
+
     struct ValidationPolicy {
-        uint256 minScore;          // Minimum avg score for approval (scaled by 100, e.g., 8000 = 80%)
-        uint256 minValidators;     // Minimum validators required (e.g., 25)
-        uint256 trainerStakeMin;   // Minimum stake required from trainer
+        uint256 minScore; // Minimum avg score for approval (scaled by 100, e.g., 8000 = 80%)
+        uint256 minValidators; // Minimum validators required (e.g., 25)
+        uint256 trainerStakeMin; // Minimum stake required from trainer
         uint256 validatorStakeMin; // Minimum stake required from each validator
         uint256 challengeWindowHours; // Challenge window duration (e.g., 48 hours)
     }
 
     struct AccessPolicyConfig {
-        bool requireTicket;          // Whether a download ticket is required
-        uint256 minStakeRequired;    // Additional stake/payment requirement prior to access
-        address ticketManager;       // Ticket manager contract responsible for issuing tickets
-        uint256 ticketTTL;           // Optional hint for ticket expiry (in seconds)
+        bool requireTicket; // Whether a download ticket is required
+        uint256 minStakeRequired; // Additional stake/payment requirement prior to access
+        address ticketManager; // Ticket manager contract responsible for issuing tickets
+        uint256 ticketTTL; // Optional hint for ticket expiry (in seconds)
     }
 
     struct TicketReceipt {
@@ -107,21 +110,21 @@ contract AIVMModelRegistry is ReentrancyGuard {
         bool resolved;
         bool accepted;
     }
-    
+
     // ============================================================================
     // STATE VARIABLES
     // ============================================================================
-    
+
     // Model storage
     mapping(string => BaseModel) public baseModels;
     mapping(string => ModelVariant) public variants;
     mapping(string => ValidatorStake[]) public variantValidators;
-    
+
     // Indexes for enumeration
     string[] public baseModelIds;
     string[] public variantIds;
     mapping(address => string[]) public trainerVariants; // trainer → variant IDs
-    
+
     // Validation policy
     ValidationPolicy public policy;
     address public aggregator;
@@ -131,68 +134,65 @@ contract AIVMModelRegistry is ReentrancyGuard {
     mapping(address => bytes32[]) private accountTickets;
     mapping(string => bytes32[]) private variantTicketHistory;
     mapping(string => ChallengeRecord) private activeChallenges;
-    
+
     // Staking balances
     mapping(address => uint256) public stakedBalances;
     mapping(address => uint256) public slashedAmounts;
-    
+
     // Treasury for slashed stakes
     address private treasuryAddress;
-    
+
     // ============================================================================
     // EVENTS
     // ============================================================================
-    
+
     event BaseModelRegistered(
         string indexed modelId,
         string baseModelCID,
         string metadataHash,
         string benchmarkCID
     );
-    
+
     event ValidationRequested(
         string indexed variantId,
         string variantCID,
         address indexed trainer,
         uint256 trainerStake
     );
-    
+
     event ValidatorStaked(
         string indexed variantId,
         address indexed validator,
         uint256 amount
     );
-    
+
     event ValidationResult(
         string indexed variantId,
         uint256 avgScore,
         bool passed,
         uint256 validatorCount
     );
-    
+
     event VariantApproved(
         string indexed variantId,
         uint256 avgScore,
         uint256 challengeDeadline
     );
-    
+
     event VariantRejected(
         string indexed variantId,
         uint256 avgScore,
         string reason
     );
-    
-    event VariantFinalized(
-        string indexed variantId,
-        uint256 finalizedAt
-    );
-    
+
+    event VariantFinalized(string indexed variantId, uint256 finalizedAt);
+
     event ChallengeOpened(
         string indexed variantId,
         address indexed challenger,
         uint256 challengeStake
     );
-    
+
     event ChallengeSubmitted(
         string indexed variantId,
         address indexed challenger,
@@ -200,7 +200,7 @@ contract AIVMModelRegistry is ReentrancyGuard {
         string reason,
         uint256 stake
     );
-    
+
     event ChallengeResolved(
         string indexed variantId,
         bool challengeValid,
@@ -212,7 +212,7 @@ contract AIVMModelRegistry is ReentrancyGuard {
         address indexed challenger,
         string reason
     );
-    
+
     event ValidatorSlashed(
         address indexed validator,
         string indexed variantId,
@@ -226,12 +226,9 @@ contract AIVMModelRegistry is ReentrancyGuard {
         uint256 totalAmount,
         string reason
     );
-    
-    event StakeWithdrawn(
-        address indexed user,
-        uint256 amount
-    );
-    
+
+    event StakeWithdrawn(address indexed user, uint256 amount);
+
     event PolicyUpdated(
         uint256 minScore,
         uint256 minValidators,
@@ -284,30 +281,30 @@ contract AIVMModelRegistry is ReentrancyGuard {
         require(newOwner != address(0), "New owner is zero address");
         contractOwner = newOwner;
     }
-    
+
     // ============================================================================
     // CONSTRUCTOR
     // ============================================================================
-    
+
     constructor(address _treasury) {
         contractOwner = msg.sender;
         treasuryAddress = _treasury;
         aggregator = msg.sender;
-        
+
         // Default validation policy
         policy = ValidationPolicy({
-            minScore: 8000,              // 80% minimum score
-            minValidators: 25,           // 25 validators required
-            trainerStakeMin: 100 ether,  // 100 LCAI to submit variant
+            minScore: 8000, // 80% minimum score
+            minValidators: 25, // 25 validators required
+            trainerStakeMin: 100 ether, // 100 LCAI to submit variant
             validatorStakeMin: 50 ether, // 50 LCAI to validate
-            challengeWindowHours: 48     // 48 hour challenge window
+            challengeWindowHours: 48 // 48 hour challenge window
         });
     }
-    
+
     // ============================================================================
     // BASE MODEL MANAGEMENT
     // ============================================================================
-    
+
     /**
      * @notice Register a new base model (owner only)
      * @param modelId Unique model identifier
@@ -324,9 +321,15 @@ contract AIVMModelRegistry is ReentrancyGuard {
         string calldata benchmarkCID
     ) external onlyOwner {
         require(bytes(modelId).length > 0, "Model ID cannot be empty");
-        require(bytes(baseModels[modelId].modelId).length == 0, "Model ID already exists");
-        require(bytes(baseModelCID).length > 0, "Base model CID cannot be empty");
-        
+        require(
+            bytes(baseModels[modelId].modelId).length == 0,
+            "Model ID already exists"
+        );
+        require(
+            bytes(baseModelCID).length > 0,
+            "Base model CID cannot be empty"
+        );
+
         baseModels[modelId] = BaseModel({
             modelId: modelId,
             baseModelCID: baseModelCID,
@@ -336,31 +339,41 @@ contract AIVMModelRegistry is ReentrancyGuard {
             createdAt: block.timestamp,
             isActive: true
         });
-        
+
         baseModelIds.push(modelId);
-        
-        emit BaseModelRegistered(modelId, baseModelCID, metadataHash, benchmarkCID);
+
+        emit BaseModelRegistered(
+            modelId,
+            baseModelCID,
+            metadataHash,
+            benchmarkCID
+        );
     }
-    
+
     /**
      * @notice Get base model details
      */
-    function getBaseModel(string calldata modelId) external view returns (BaseModel memory) {
-        require(bytes(baseModels[modelId].modelId).length > 0, "Base model not found");
+    function getBaseModel(
+        string calldata modelId
+    ) external view returns (BaseModel memory) {
+        require(
+            bytes(baseModels[modelId].modelId).length > 0,
+            "Base model not found"
+        );
         return baseModels[modelId];
     }
-    
+
     /**
      * @notice Get all base model IDs
      */
     function getBaseModelIds() external view returns (string[] memory) {
         return baseModelIds;
     }
-    
+
     // ============================================================================
     // VARIANT SUBMISSION (with Staking)
     // ============================================================================
-    
+
     /**
      * @notice Submit a trained variant for validation
      * @param variantId Unique variant identifier
@@ -375,14 +388,20 @@ contract AIVMModelRegistry is ReentrancyGuard {
         string calldata parentModelId
     ) external payable nonReentrant {
         require(bytes(variantId).length > 0, "Variant ID cannot be empty");
-        require(bytes(variants[variantId].variantId).length == 0, "Variant ID already exists");
+        require(
+            bytes(variants[variantId].variantId).length == 0,
+            "Variant ID already exists"
+        );
         require(bytes(variantCID).length > 0, "Variant CID cannot be empty");
-        require(bytes(baseModels[parentModelId].modelId).length > 0, "Parent model not found");
+        require(
+            bytes(baseModels[parentModelId].modelId).length > 0,
+            "Parent model not found"
+        );
         require(msg.value >= policy.trainerStakeMin, "Insufficient stake");
-        
+
         // Store trainer's stake
         stakedBalances[msg.sender] += msg.value;
-        
+
         // Create variant struct
         ModelVariant storage variant = variants[variantId];
         variant.variantId = variantId;
@@ -393,59 +412,72 @@ contract AIVMModelRegistry is ReentrancyGuard {
         variant.trainerStake = msg.value;
         variant.status = ModelStatus.Submitted;
         variant.submittedAt = block.timestamp;
-        
+
         variantIds.push(variantId);
         trainerVariants[msg.sender].push(variantId);
-        
+
         emit ValidationRequested(variantId, variantCID, msg.sender, msg.value);
     }
-    
+
     // ============================================================================
     // VALIDATOR STAKING
     // ============================================================================
-    
+
     /**
      * @notice Stake tokens to participate in validation
      * @param variantId Variant to validate
      */
-    function stakeForValidation(string calldata variantId) external payable nonReentrant {
-        require(bytes(variants[variantId].variantId).length > 0, "Variant not found");
+    function stakeForValidation(
+        string calldata variantId
+    ) external payable nonReentrant {
         require(
-            variants[variantId].status == ModelStatus.Submitted || 
-            variants[variantId].status == ModelStatus.Validating,
+            bytes(variants[variantId].variantId).length > 0,
+            "Variant not found"
+        );
+        require(
+            variants[variantId].status == ModelStatus.Submitted ||
+                variants[variantId].status == ModelStatus.Validating,
             "Variant not accepting validators"
         );
-        require(msg.value >= policy.validatorStakeMin, "Insufficient validator stake");
-        
+        require(
+            msg.value >= policy.validatorStakeMin,
+            "Insufficient validator stake"
+        );
+
         // Check if validator already staked
         ValidatorStake[] storage stakes = variantValidators[variantId];
         for (uint i = 0; i < stakes.length; i++) {
-            require(stakes[i].validator != msg.sender, "Already staked for this variant");
+            require(
+                stakes[i].validator != msg.sender,
+                "Already staked for this variant"
+            );
         }
-        
+
         // Store validator's stake
         stakedBalances[msg.sender] += msg.value;
-        
-        stakes.push(ValidatorStake({
-            validator: msg.sender,
-            amount: msg.value,
-            stakedAt: block.timestamp,
-            hasSubmitted: false,
-            isSlashed: false
-        }));
-        
+
+        stakes.push(
+            ValidatorStake({
+                validator: msg.sender,
+                amount: msg.value,
+                stakedAt: block.timestamp,
+                hasSubmitted: false,
+                isSlashed: false
+            })
+        );
+
         // Update variant status to Validating if first validator
         if (variants[variantId].status == ModelStatus.Submitted) {
             variants[variantId].status = ModelStatus.Validating;
         }
-        
+
         emit ValidatorStaked(variantId, msg.sender, msg.value);
     }
-    
+
     // ============================================================================
     // VALIDATION RESULT SUBMISSION (Off-chain Model Service calls this)
     // ============================================================================
-    
+
     /**
      * @notice Convenience helper for the aggregator to submit scores without passing validator counts.
      * @param variantId Variant being validated
@@ -493,9 +525,18 @@ contract AIVMModelRegistry is ReentrancyGuard {
         string calldata reportCID,
         uint256 validatorCount
     ) internal {
-        require(bytes(variants[variantId].variantId).length > 0, "Variant not found");
-        require(variants[variantId].status == ModelStatus.Validating, "Variant not validating");
-        require(validatorCount >= policy.minValidators, "Insufficient validators");
+        require(
+            bytes(variants[variantId].variantId).length > 0,
+            "Variant not found"
+        );
+        require(
+            variants[variantId].status == ModelStatus.Validating,
+            "Variant not validating"
+        );
+        require(
+            validatorCount >= policy.minValidators,
+            "Insufficient validators"
+        );
         require(avgScore <= 10000, "Score out of range");
         require(msg.sender == aggregator, "Caller not aggregator");
 
@@ -506,46 +547,73 @@ contract AIVMModelRegistry is ReentrancyGuard {
         variant.validatorCount = validatorCount;
 
         bool passed = avgScore >= policy.minScore;
-        emit AggregatedResultSubmitted(variantId, avgScore, validatorCount, reportCID);
-        emit ScoreSubmitted(variantId, avgScore, reportCID, msg.sender, validatorCount);
+        emit AggregatedResultSubmitted(
+            variantId,
+            avgScore,
+            validatorCount,
+            reportCID
+        );
+        emit ScoreSubmitted(
+            variantId,
+            avgScore,
+            reportCID,
+            msg.sender,
+            validatorCount
+        );
         emit ValidationResult(variantId, avgScore, passed, validatorCount);
 
         if (passed) {
             variant.status = ModelStatus.Approved;
             variant.challengeWindowOpen = true;
-            variant.challengeDeadline = block.timestamp + (policy.challengeWindowHours * 1 hours);
+            variant.challengeDeadline =
+                block.timestamp + (policy.challengeWindowHours * 1 hours);
 
-            emit VariantApproved(variantId, avgScore, variant.challengeDeadline);
+            emit VariantApproved(
+                variantId,
+                avgScore,
+                variant.challengeDeadline
+            );
         } else {
             variant.status = ModelStatus.Rejected;
-            _slashStake(variant.trainer, variant.trainerStake, "Low quality variant", variantId);
+            _slashStake(
+                variant.trainer,
+                variant.trainerStake,
+                "Low quality variant",
+                variantId
+            );
             emit VariantRejected(variantId, avgScore, "Score below minimum");
         }
     }
-    
+
     // ============================================================================
     // FINALIZATION (after challenge window)
     // ============================================================================
-    
+
     /**
      * @notice Finalize an approved variant after challenge window expires
      * @param variantId Variant to finalize
      */
     function finalizeVariant(string calldata variantId) external {
-        require(bytes(variants[variantId].variantId).length > 0, "Variant not found");
+        require(
+            bytes(variants[variantId].variantId).length > 0,
+            "Variant not found"
+        );
         ModelVariant storage variant = variants[variantId];
-        
+
         require(variant.status == ModelStatus.Approved, "Variant not approved");
         require(variant.challengeWindowOpen, "Challenge window not open");
-        require(block.timestamp >= variant.challengeDeadline, "Challenge window not expired");
-        
+        require(
+            block.timestamp >= variant.challengeDeadline,
+            "Challenge window not expired"
+        );
+
         variant.status = ModelStatus.Finalized;
         variant.challengeWindowOpen = false;
         variant.finalizedAt = block.timestamp;
-        
+
         // Refund trainer stake (successful submission)
         _refundStake(variant.trainer, variant.trainerStake);
-        
+
         // Refund validator stakes (honest validation)
         ValidatorStake[] storage stakes = variantValidators[variantId];
         for (uint i = 0; i < stakes.length; i++) {
@@ -553,14 +621,14 @@ contract AIVMModelRegistry is ReentrancyGuard {
                 _refundStake(stakes[i].validator, stakes[i].amount);
             }
         }
-        
+
         emit VariantFinalized(variantId, block.timestamp);
     }
-    
+
     // ============================================================================
     // CHALLENGE SYSTEM
     // ============================================================================
-    
+
     /**
      * @notice Open a challenge against an approved variant
      * @param variantId Variant to challenge
@@ -591,13 +659,22 @@ contract AIVMModelRegistry is ReentrancyGuard {
         uint256 stake,
         address challenger
     ) internal {
-        require(bytes(variants[variantId].variantId).length > 0, "Variant not found");
+        require(
+            bytes(variants[variantId].variantId).length > 0,
+            "Variant not found"
+        );
         ModelVariant storage variant = variants[variantId];
 
         require(variant.status == ModelStatus.Approved, "Variant not approved");
         require(variant.challengeWindowOpen, "Challenge window closed");
-        require(block.timestamp < variant.challengeDeadline, "Challenge window expired");
-        require(stake >= policy.trainerStakeMin, "Insufficient challenge stake");
+        require(
+            block.timestamp < variant.challengeDeadline,
+            "Challenge window expired"
+        );
+        require(
+            stake >= policy.trainerStakeMin,
+            "Insufficient challenge stake"
+        );
 
         ChallengeRecord storage existing = activeChallenges[variantId];
         require(
@@ -618,7 +695,13 @@ contract AIVMModelRegistry is ReentrancyGuard {
         });
 
         emit ChallengeOpened(variantId, challenger, stake);
-        emit ChallengeSubmitted(variantId, challenger, evidenceCID, reason, stake);
+        emit ChallengeSubmitted(
+            variantId,
+            challenger,
+            evidenceCID,
+            reason,
+            stake
+        );
     }
 
     function slashValidators(
@@ -663,7 +746,12 @@ contract AIVMModelRegistry is ReentrancyGuard {
 
         if (rejectVariant) {
             variant.status = ModelStatus.Rejected;
-            _slashStake(variant.trainer, variant.trainerStake, "Trainer slashed", variantId);
+            _slashStake(
+                variant.trainer,
+                variant.trainerStake,
+                "Trainer slashed",
+                variantId
+            );
         }
 
         challenge.resolved = true;
@@ -695,7 +783,9 @@ contract AIVMModelRegistry is ReentrancyGuard {
 
         if (stake > 0) {
             uint256 doubleStake = stake * 2;
-            uint256 payout = address(this).balance >= doubleStake ? doubleStake : stake;
+            uint256 payout = address(this).balance >= doubleStake
+                ? doubleStake
+                : stake;
             (bool success, ) = payable(challenger).call{value: payout}("");
             require(success, "Challenge reward failed");
         }
@@ -719,7 +809,7 @@ contract AIVMModelRegistry is ReentrancyGuard {
 
         challenge.stake = 0;
     }
-    
+
     /**
      * @notice Resolve a challenge (owner/Model Service calls after re-validation)
      * @param variantId Variant being challenged
@@ -747,7 +837,10 @@ contract AIVMModelRegistry is ReentrancyGuard {
         address challenger,
         bool challengeValid
     ) internal {
-        require(bytes(variants[variantId].variantId).length > 0, "Variant not found");
+        require(
+            bytes(variants[variantId].variantId).length > 0,
+            "Variant not found"
+        );
         ModelVariant storage variant = variants[variantId];
 
         if (challengeValid) {
@@ -757,21 +850,38 @@ contract AIVMModelRegistry is ReentrancyGuard {
             uint256 challengerStake = stakedBalances[challenger];
             if (challengerStake > 0) {
                 stakedBalances[challenger] = 0;
-                (bool success, ) = payable(challenger).call{value: challengerStake * 2}("");
+                (bool success, ) = payable(challenger).call{
+                    value: challengerStake * 2
+                }("");
                 require(success, "Challenger reward failed");
             }
 
             ValidatorStake[] storage stakes = variantValidators[variantId];
             for (uint i = 0; i < stakes.length; i++) {
-                _slashStake(stakes[i].validator, stakes[i].amount, "Fraudulent validation", variantId);
+                _slashStake(
+                    stakes[i].validator,
+                    stakes[i].amount,
+                    "Fraudulent validation",
+                    variantId
+                );
                 stakes[i].isSlashed = true;
             }
 
-            _slashStake(variant.trainer, variant.trainerStake, "Fraudulent variant", variantId);
+            _slashStake(
+                variant.trainer,
+                variant.trainerStake,
+                "Fraudulent variant",
+                variantId
+            );
         } else {
             uint256 challengerStake = stakedBalances[challenger];
             if (challengerStake > 0) {
-                _slashStake(challenger, challengerStake, "Invalid challenge", variantId);
+                _slashStake(
+                    challenger,
+                    challengerStake,
+                    "Invalid challenge",
+                    variantId
+                );
             }
 
             variant.challengeWindowOpen = false;
@@ -787,28 +897,37 @@ contract AIVMModelRegistry is ReentrancyGuard {
                 _rewardChallenger(variantId);
             } else {
                 _refundChallengeStake(variantId);
-                emit ChallengeDismissed(variantId, record.challenger, "Challenge invalid");
+                emit ChallengeDismissed(
+                    variantId,
+                    record.challenger,
+                    "Challenge invalid"
+                );
             }
         }
     }
-    
+
     // ============================================================================
     // STAKING HELPERS
     // ============================================================================
-    
-    function _slashStake(address user, uint256 amount, string memory reason, string memory variantId) internal {
+
+    function _slashStake(
+        address user,
+        uint256 amount,
+        string memory reason,
+        string memory variantId
+    ) internal {
         if (stakedBalances[user] >= amount) {
             stakedBalances[user] -= amount;
             slashedAmounts[user] += amount;
-            
+
             // Send slashed amount to treasury
             (bool success, ) = payable(treasuryAddress).call{value: amount}("");
             require(success, "Treasury transfer failed");
-            
+
             emit ValidatorSlashed(user, variantId, amount, reason);
         }
     }
-    
+
     function _refundStake(address user, uint256 amount) internal {
         if (stakedBalances[user] >= amount) {
             stakedBalances[user] -= amount;
@@ -816,66 +935,77 @@ contract AIVMModelRegistry is ReentrancyGuard {
             require(success, "Refund failed");
         }
     }
-    
+
     /**
      * @notice Withdraw available stake after validation complete
      */
     function withdrawStake() external nonReentrant {
         uint256 available = stakedBalances[msg.sender];
         require(available > 0, "No stake to withdraw");
-        
+
         stakedBalances[msg.sender] = 0;
-        
+
         (bool success, ) = payable(msg.sender).call{value: available}("");
         require(success, "Withdrawal failed");
-        
+
         emit StakeWithdrawn(msg.sender, available);
     }
-    
+
     // ============================================================================
     // QUERY FUNCTIONS
     // ============================================================================
-    
+
     /**
      * @notice Get variant details
      */
-    function getVariant(string calldata variantId) external view returns (ModelVariant memory) {
-        require(bytes(variants[variantId].variantId).length > 0, "Variant not found");
+    function getVariant(
+        string calldata variantId
+    ) external view returns (ModelVariant memory) {
+        require(
+            bytes(variants[variantId].variantId).length > 0,
+            "Variant not found"
+        );
         return variants[variantId];
     }
-    
+
     /**
      * @notice Get all variants by trainer
      */
-    function getTrainerVariants(address trainer) external view returns (string[] memory) {
+    function getTrainerVariants(
+        address trainer
+    ) external view returns (string[] memory) {
         return trainerVariants[trainer];
     }
-    
+
     /**
      * @notice Get all validator stakes for a variant
      */
-    function getVariantValidators(string calldata variantId) external view returns (ValidatorStake[] memory) {
+    function getVariantValidators(
+        string calldata variantId
+    ) external view returns (ValidatorStake[] memory) {
         return variantValidators[variantId];
     }
-    
+
     /**
      * @notice Get all variant IDs
      */
     function getAllVariants() external view returns (string[] memory) {
         return variantIds;
     }
-    
+
     /**
      * @notice Check if variant is finalized and available for use
      */
-    function isVariantAvailable(string calldata variantId) external view returns (bool) {
+    function isVariantAvailable(
+        string calldata variantId
+    ) external view returns (bool) {
         return variants[variantId].status == ModelStatus.Finalized;
     }
-    
+
     // ============================================================================
     // ADMIN FUNCTIONS
     // ============================================================================
-    
+
     /**
      * @notice Update validation policy (owner only)
      */
@@ -888,7 +1018,7 @@ contract AIVMModelRegistry is ReentrancyGuard {
     ) external onlyOwner {
         require(minScore <= 10000, "Score out of range");
         require(minValidators > 0, "Min validators must be > 0");
-        
+
         policy = ValidationPolicy({
             minScore: minScore,
             minValidators: minValidators,
@@ -896,8 +1026,14 @@ contract AIVMModelRegistry is ReentrancyGuard {
             validatorStakeMin: validatorStakeMin,
             challengeWindowHours: challengeWindowHours
         });
-        
-        emit PolicyUpdated(minScore, minValidators, trainerStakeMin, validatorStakeMin, challengeWindowHours);
+
+        emit PolicyUpdated(
+            minScore,
+            minValidators,
+            trainerStakeMin,
+            validatorStakeMin,
+            challengeWindowHours
+        );
     }
 
     function setAggregator(address _aggregator) external onlyOwner {
@@ -919,35 +1055,57 @@ contract AIVMModelRegistry is ReentrancyGuard {
         config.ticketManager = ticketManager;
         config.ticketTTL = ticketTTL;
 
-        emit AccessPolicyUpdated(variantId, requireTicket, minStakeRequired, ticketManager, ticketTTL);
+        emit AccessPolicyUpdated(
+            variantId,
+            requireTicket,
+            minStakeRequired,
+            ticketManager,
+            ticketTTL
+        );
     }
 
-    function getAccessPolicy(string calldata variantId) external view returns (AccessPolicyConfig memory) {
+    function getAccessPolicy(
+        string calldata variantId
+    ) external view returns (AccessPolicyConfig memory) {
         return variantAccessPolicies[variantId];
     }
 
-    function getTicketReceipt(bytes32 ticketId) external view returns (TicketReceipt memory) {
-        require(ticketReceipts[ticketId].ticketId != bytes32(0), "Ticket not found");
+    function getTicketReceipt(
+        bytes32 ticketId
+    ) external view returns (TicketReceipt memory) {
+        require(
+            ticketReceipts[ticketId].ticketId != bytes32(0),
+            "Ticket not found"
+        );
         return ticketReceipts[ticketId];
     }
 
-    function getAccountTicketIds(address requester) external view returns (bytes32[] memory) {
+    function getAccountTicketIds(
+        address requester
+    ) external view returns (bytes32[] memory) {
         return accountTickets[requester];
     }
 
-    function getVariantTicketIds(string calldata variantId) external view returns (bytes32[] memory) {
+    function getVariantTicketIds(
+        string calldata variantId
+    ) external view returns (bytes32[] memory) {
         return variantTicketHistory[variantId];
     }
 
-    function getChallengeReceipt(string calldata variantId) external view returns (ChallengeRecord memory) {
+    function getChallengeReceipt(
+        string calldata variantId
+    ) external view returns (ChallengeRecord memory) {
         return activeChallenges[variantId];
     }
 
-    function requestDecryptionTicket(string calldata variantId) external nonReentrant returns (bytes32) {
+    function requestDecryptionTicket(
+        string calldata variantId
+    ) external nonReentrant returns (bytes32) {
         ModelVariant storage variant = variants[variantId];
         require(bytes(variant.variantId).length > 0, "Variant not found");
         require(
-            variant.status == ModelStatus.Approved || variant.status == ModelStatus.Finalized,
+            variant.status == ModelStatus.Approved ||
+                variant.status == ModelStatus.Finalized,
             "Variant not accessible"
         );
 
@@ -956,11 +1114,18 @@ contract AIVMModelRegistry is ReentrancyGuard {
         require(config.ticketManager != address(0), "Ticket manager missing");
 
         if (config.minStakeRequired > 0) {
-            require(stakedBalances[msg.sender] >= config.minStakeRequired, "Stake threshold not met");
+            require(
+                stakedBalances[msg.sender] >= config.minStakeRequired,
+                "Stake threshold not met"
+            );
         }
 
         uint256 ttl = config.ticketTTL;
-        bytes32 ticketId = IAIVMTicketManager(config.ticketManager).issueTicket(msg.sender, variantId, ttl);
+        bytes32 ticketId = IAIVMTicketManager(config.ticketManager).issueTicket(
+            msg.sender,
+            variantId,
+            ttl
+        );
         uint256 expiresAt = ttl == 0 ? 0 : block.timestamp + ttl;
 
         TicketReceipt storage receipt = ticketReceipts[ticketId];
@@ -974,44 +1139,54 @@ contract AIVMModelRegistry is ReentrancyGuard {
         accountTickets[msg.sender].push(ticketId);
         variantTicketHistory[variantId].push(ticketId);
 
-        emit DecryptionTicketRequested(variantId, msg.sender, ticketId, expiresAt, config.ticketManager);
+        emit DecryptionTicketRequested(
+            variantId,
+            msg.sender,
+            ticketId,
+            expiresAt,
+            config.ticketManager
+        );
         return ticketId;
     }
- 
+
     /**
      * @notice Update treasury address (owner only)
      */
     function treasury() external view returns (address payable) {
         return payable(treasuryAddress);
     }
-    
+
     function setTreasury(address _treasury) external onlyOwner {
         require(_treasury != address(0), "Invalid treasury address");
         treasuryAddress = _treasury;
     }
-    
+
     /**
      * @notice Deprecate a variant (owner only)
      */
     function deprecateVariant(string calldata variantId) external onlyOwner {
-        require(bytes(variants[variantId].variantId).length > 0, "Variant not found");
+        require(
+            bytes(variants[variantId].variantId).length > 0,
+            "Variant not found"
+        );
         variants[variantId].status = ModelStatus.Deprecated;
     }
-    
+
     /**
      * @notice Emergency withdraw (owner only, for stuck funds)
      */
     function emergencyWithdraw() external onlyOwner {
-        (bool success, ) = payable(owner()).call{value: address(this).balance}("");
+        (bool success, ) = payable(owner()).call{value: address(this).balance}(
+            ""
+        );
         require(success, "Emergency withdrawal failed");
     }
-    
+
     // ============================================================================
     // RECEIVE FUNCTION
     // ============================================================================
-    
+
     receive() external payable {
         // Accept direct ETH/LCAI deposits for staking
     }
 }
-
