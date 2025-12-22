@@ -20,6 +20,10 @@ async function main() {
     process.env.COORDINATOR_HTTP_URL ||
     process.env.AIVM_COORDINATOR_HTTP_URL ||
     "http://localhost:8081";
+  const bearer =
+    process.env.HTTP_BEARER_TOKEN ||
+    process.env.COORDINATOR_HTTP_BEARER_TOKEN ||
+    process.env.AIVM_COORDINATOR_HTTP_BEARER_TOKEN;
   const validatorId = process.env.AIVM_VALIDATOR_ID || "validator-1";
   const taskId = process.env.AIVM_TASK_ID;
 
@@ -69,9 +73,14 @@ async function main() {
   console.log("contract=", addr);
   console.log("request_id=", requestId.toString());
 
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (bearer && bearer.trim().length > 0) {
+    headers["Authorization"] = `Bearer ${bearer.trim()}`;
+  }
+
   const res = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
   });
   const text = await res.text();
@@ -85,4 +94,3 @@ main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
-
