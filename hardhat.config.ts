@@ -36,27 +36,32 @@ const lcaiBlockscoutApiUrl =
   (LCAI_BLOCKSCOUT_API_URL && LCAI_BLOCKSCOUT_API_URL.trim()) ||
   `${lcaiBlockscoutBrowserUrl.replace(/\/$/, "")}/api`;
 
+const SOLIDITY_PROFILE = process.env.SOLIDITY_PROFILE || "default";
+const SOLIDITY_IS_PROD = SOLIDITY_PROFILE === "production";
+const SOLIDITY_SETTINGS = {
+  optimizer: {
+    enabled: true,
+    runs: SOLIDITY_IS_PROD ? 200 : 2000,
+  },
+  evmVersion: "paris",
+  ...(SOLIDITY_IS_PROD ? {} : { viaIR: true }),
+};
+
 const config: HardhatUserConfig = {
   plugins: [hardhatToolboxMochaEthersPlugin, hardhatVerify],
   solidity: {
-    profiles: {
-      default: {
+    compilers: [
+      {
         version: "0.8.28",
-        settings: {
-          optimizer: {
-            enabled: true,
-            runs: 2000,
-          },
-          viaIR: true,
-        },
+        settings: SOLIDITY_SETTINGS,
       },
-      production: {
+    ],
+    overrides: {
+      "contracts/LCAIGovernor.sol": {
         version: "0.8.28",
         settings: {
-          optimizer: {
-            enabled: true,
-            runs: 200,
-          },
+          ...SOLIDITY_SETTINGS,
+          evmVersion: "cancun",
         },
       },
     },

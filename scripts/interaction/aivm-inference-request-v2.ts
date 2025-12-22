@@ -1,4 +1,5 @@
 import { network } from "hardhat";
+import * as crypto from "crypto";
 
 function requireValue(name: string, value: string | undefined): string {
   if (!value || value.trim().length === 0) {
@@ -9,16 +10,23 @@ function requireValue(name: string, value: string | undefined): string {
 
 function detConfigString(): string {
   // Must match `PoI-Consensus/consensus-go/cmd/aivm-worker` detConfigString().
-  return "engine=ollama;temperature=0;top_p=1;stream=false;seed=0;";
+  const base = "engine=ollama;temperature=0;top_p=1;stream=false;seed=0;";
+  let out = base;
+  const np = (process.env.AIVM_OLLAMA_NUM_PREDICT || "").trim();
+  if (np && /^[0-9]+$/.test(np)) {
+    out += `num_predict=${np};`;
+  }
+  const nc = (process.env.AIVM_OLLAMA_NUM_CTX || "").trim();
+  if (nc && /^[0-9]+$/.test(nc)) {
+    out += `num_ctx=${nc};`;
+  }
+  return out;
 }
 
 function toBytes32HexFromOllamaDigest(digest: string): string {
   const d = digest.trim();
   const prefix = "sha256:";
-  if (!d.startsWith(prefix)) {
-    throw new Error(`Unexpected ollama digest format: ${d}`);
-  }
-  const hex = d.slice(prefix.length);
+  const hex = d.startsWith(prefix) ? d.slice(prefix.length) : d;
   if (!/^[0-9a-f]{64}$/i.test(hex)) {
     throw new Error(`Unexpected sha256 hex: ${hex}`);
   }
@@ -51,8 +59,7 @@ async function getOllamaModelDigest(ollamaUrl: string, model: string): Promise<s
 async function storePrompt(
   coordinatorHttp: string,
   bearer: string | undefined,
-  prompt: string,
-  promptHash: string
+  body: Record<string, string>
 ): Promise<{ prompt_id: string; prompt_hash: string }> {
   const endpoint = coordinatorHttp.replace(/\/$/, "") + "/aivm/prompts";
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -63,7 +70,7 @@ async function storePrompt(
   const res = await fetch(endpoint, {
     method: "POST",
     headers,
-    body: JSON.stringify({ prompt, prompt_hash: promptHash }),
+    body: JSON.stringify(body),
   });
   const text = await res.text();
   if (!res.ok) {
@@ -71,6 +78,35 @@ async function storePrompt(
   }
   const parsed = JSON.parse(text) as { prompt_id: string; prompt_hash: string };
   return parsed;
+}
+
+function parseAes256KeyHex(key: string): Buffer {
+  let k = key.trim();
+  if (k.startsWith("0x")) {
+    k = k.slice(2);
+  }
+  if (!/^[0-9a-f]{64}$/i.test(k)) {
+    throw new Error("AIVM_PROMPT_ENC_KEY must be 32-byte hex (64 chars)");
+  }
+  return Buffer.from(k, "hex");
+}
+
+function encryptPrompt(prompt: string, keyHex: string): {
+  prompt_ciphertext: string;
+  prompt_nonce: string;
+  prompt_enc_alg: string;
+} {
+  const key = parseAes256KeyHex(keyHex);
+  const nonce = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, nonce);
+  const ciphertext = Buffer.concat([cipher.update(prompt, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  const out = Buffer.concat([ciphertext, tag]);
+  return {
+    prompt_ciphertext: out.toString("base64"),
+    prompt_nonce: nonce.toString("base64"),
+    prompt_enc_alg: "aes-256-gcm",
+  };
 }
 
 async function main() {
@@ -101,7 +137,20 @@ async function main() {
   const promptText = requireValue("AIVM_PROMPT (or argv[4])", prompt);
 
   const promptHash = ethers.keccak256(ethers.toUtf8Bytes(promptText));
-  const stored = await storePrompt(coordinatorHttp, bearer, promptText, promptHash);
+  const encKey =
+    process.env.AIVM_PROMPT_ENC_KEY ||
+    process.env.AIVM_PROMPT_ENCRYPTION_KEY ||
+    "";
+  let storeBody: Record<string, string> = { prompt_hash: promptHash };
+  if (encKey && encKey.trim().length > 0) {
+    const enc = encryptPrompt(promptText, encKey);
+    storeBody = { ...storeBody, ...enc };
+    console.log("Prompt: (encrypted)");
+    console.log("PromptEncAlg:", enc.prompt_enc_alg);
+  } else {
+    storeBody.prompt = promptText;
+  }
+  const stored = await storePrompt(coordinatorHttp, bearer, storeBody);
 
   const promptId = requireValue("prompt_id", stored.prompt_id);
   const storedHash = requireValue("prompt_hash", stored.prompt_hash);
@@ -168,4 +217,3 @@ main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
-
