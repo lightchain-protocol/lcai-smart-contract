@@ -139,7 +139,7 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
     }
 
     function _updateAdmin(address _admin) internal {
-        // if (_admin.code.length == 0) revert AdminMustBeContract();
+        if (_admin.code.length == 0) revert AdminMustBeContract();
         if (_admin == admin) return;
         address previousAdmin = admin;
         admin = _admin;
