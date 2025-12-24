@@ -4,6 +4,7 @@ import { parseEther } from "ethers";
 
 const { network } = hre;
 let ethers: typeof hre.ethers;
+let networkHelpers: any;
 let owner: any;
 let buyer1: any;
 let buyer2: any;
@@ -12,11 +13,38 @@ let treasury: any;
 
 describe("LCAIAirdrop", function () {
   before(async function () {
-    ({ ethers } = await network.connect());
+    ({ ethers, networkHelpers } = await network.connect());
     [owner, buyer1, buyer2, buyer3, treasury] = await ethers.getSigners();
   });
 
   // ===== HELPER FUNCTIONS =====
+
+  async function setupDirectClaim(airdrop: any) {
+    const currentBlock = await ethers.provider.getBlock("latest");
+    const startTime = BigInt(currentBlock!.timestamp + 100);
+    const endTime = startTime + 30n * 24n * 60n * 60n; // 30 days
+    await airdrop.openClaim(startTime, endTime);
+    await networkHelpers.time.increase(150);
+  }
+
+  async function setupVestingConfig(
+    airdrop: any,
+    durationMonths: bigint = 12n,
+    rewardPercentage: bigint = 75n,
+    monthlyReleasePercentage: bigint = 10n,
+  ) {
+    const currentBlock = await ethers.provider.getBlock("latest");
+    const startTime = BigInt(currentBlock!.timestamp + 100);
+    const endTime = startTime + 30n * 24n * 60n * 60n; // 30 days
+    await airdrop.openVesting(
+      startTime,
+      endTime,
+      durationMonths,
+      rewardPercentage,
+      monthlyReleasePercentage,
+    );
+    await networkHelpers.time.increase(150);
+  }
 
   async function deployFixture() {
     // Deploy the token
@@ -37,14 +65,14 @@ describe("LCAIAirdrop", function () {
     // Setup presale
     await presale.addPayableTokens(
       [await usdt.getAddress()],
-      [parseEther("1")]
+      [parseEther("1")],
     );
     await token.approve(await presale.getAddress(), totalTokenForSale);
     await presale.setSaleToken(
       await token.getAddress(),
       totalTokenForSale,
       rate,
-      true
+      true,
     );
     await token.setWhitelist(await presale.getAddress(), true);
 
@@ -138,7 +166,7 @@ describe("LCAIAirdrop", function () {
         ethers.deployContract("LCAIAirdrop", [
           ethers.ZeroAddress,
           treasury.address,
-        ])
+        ]),
       ).to.be.revertedWith("LCAIAirdrop: Invalid presale address");
     });
 
@@ -152,7 +180,7 @@ describe("LCAIAirdrop", function () {
         ethers.deployContract("LCAIAirdrop", [
           await presale.getAddress(),
           ethers.ZeroAddress,
-        ])
+        ]),
       ).to.be.revertedWith("LCAIAirdrop: Invalid treasury address");
     });
 
@@ -170,6 +198,8 @@ describe("LCAIAirdrop", function () {
       const { airdrop, token, rate, buyAmount, claimFee } =
         await deployFixture();
 
+      await setupDirectClaim(airdrop);
+
       const expectedTokens = (buyAmount * 10n ** 18n) / rate;
       const expectedReward = (expectedTokens * 50n) / 100n;
 
@@ -184,13 +214,15 @@ describe("LCAIAirdrop", function () {
       expect(balanceAfter - balanceBefore).to.equal(expectedReward);
       expect(await airdrop.claimed(buyer1.address)).to.equal(true);
       expect(await airdrop.claimedAmount(buyer1.address)).to.equal(
-        expectedReward
+        expectedReward,
       );
       expect(await airdrop.totalClaimedAmount()).to.equal(expectedReward);
     });
 
     it("Should emit Claimed event", async function () {
       const { airdrop, claimFee } = await deployFixture();
+
+      await setupDirectClaim(airdrop);
 
       const tx = await airdrop.connect(buyer1).claim({
         value: claimFee,
@@ -204,6 +236,8 @@ describe("LCAIAirdrop", function () {
     it("Should prevent double claiming", async function () {
       const { airdrop, claimFee } = await deployFixture();
 
+      await setupDirectClaim(airdrop);
+
       await airdrop.connect(buyer1).claim({
         value: claimFee,
       });
@@ -211,22 +245,26 @@ describe("LCAIAirdrop", function () {
       await expect(
         airdrop.connect(buyer1).claim({
           value: claimFee,
-        })
+        }),
       ).to.be.revertedWith("LCAIAirdrop: Already claimed");
     });
 
     it("Should revert if user has no amount to claim", async function () {
       const { airdrop, claimFee } = await deployFixture();
 
+      await setupDirectClaim(airdrop);
+
       await expect(
         airdrop.connect(buyer3).claim({
           value: claimFee,
-        })
+        }),
       ).to.be.revertedWith("LCAIAirdrop: No amount to claim");
     });
 
     it("Should calculate correct reward amount for different buyers", async function () {
       const { airdrop, rate, buyAmount, claimFee } = await deployFixture();
+
+      await setupDirectClaim(airdrop);
 
       const expectedTokensBuyer1 = (buyAmount * 10n ** 18n) / rate;
       const expectedRewardBuyer1 = (expectedTokensBuyer1 * 50n) / 100n;
@@ -242,18 +280,20 @@ describe("LCAIAirdrop", function () {
       });
 
       expect(await airdrop.claimedAmount(buyer1.address)).to.equal(
-        expectedRewardBuyer1
+        expectedRewardBuyer1,
       );
       expect(await airdrop.claimedAmount(buyer2.address)).to.equal(
-        expectedRewardBuyer2
+        expectedRewardBuyer2,
       );
       expect(await airdrop.totalClaimedAmount()).to.equal(
-        expectedRewardBuyer1 + expectedRewardBuyer2
+        expectedRewardBuyer1 + expectedRewardBuyer2,
       );
     });
 
     it("Should revert if contract has insufficient balance", async function () {
       const { airdrop, token, claimFee } = await deployFixture();
+
+      await setupDirectClaim(airdrop);
 
       // Withdraw all tokens from airdrop contract
       const balance = await token.balanceOf(await airdrop.getAddress());
@@ -263,37 +303,43 @@ describe("LCAIAirdrop", function () {
       await expect(
         airdrop.connect(buyer1).claim({
           value: claimFee,
-        })
+        }),
       ).to.be.revertedWith("LCAIAirdrop: Insufficient contract balance");
     });
 
     it("Should revert if contract is paused", async function () {
       const { airdrop, claimFee } = await deployFixture();
 
+      await setupDirectClaim(airdrop);
+
       await airdrop.pause();
 
       await expect(
         airdrop.connect(buyer1).claim({
           value: claimFee,
-        })
+        }),
       ).to.be.revertedWithCustomError(airdrop, "EnforcedPause");
     });
 
     it("Should revert if claim fee is insufficient", async function () {
       const { airdrop, claimFee } = await deployFixture();
 
+      await setupDirectClaim(airdrop);
+
       await expect(
         airdrop.connect(buyer1).claim({
           value: claimFee - 1n,
-        })
+        }),
       ).to.be.revertedWith("LCAIAirdrop: Insufficient claim fee");
     });
 
     it("Should collect fees correctly and send to treasury", async function () {
       const { airdrop, claimFee } = await deployFixture();
 
+      await setupDirectClaim(airdrop);
+
       const treasuryBalanceBefore = await ethers.provider.getBalance(
-        treasury.address
+        treasury.address,
       );
 
       await airdrop.connect(buyer1).claim({
@@ -301,7 +347,7 @@ describe("LCAIAirdrop", function () {
       });
 
       const treasuryBalanceAfter = await ethers.provider.getBalance(
-        treasury.address
+        treasury.address,
       );
 
       expect(treasuryBalanceAfter - treasuryBalanceBefore).to.equal(claimFee);
@@ -311,13 +357,52 @@ describe("LCAIAirdrop", function () {
     it("Should revert if more than claim fee is sent", async function () {
       const { airdrop, claimFee } = await deployFixture();
 
+      await setupDirectClaim(airdrop);
+
       const excessAmount = parseEther("0.05"); // Send 0.05 ETH instead of 0.01
 
       await expect(
         airdrop.connect(buyer1).claim({
           value: excessAmount,
-        })
+        }),
       ).to.be.revertedWith("LCAIAirdrop: Insufficient claim fee");
+    });
+
+    it("Should revert if claiming before claim period starts", async function () {
+      const { airdrop, claimFee } = await deployFixture();
+
+      // Configure claim to start in the future
+      const currentBlock = await ethers.provider.getBlock("latest");
+      const startTime = BigInt(currentBlock!.timestamp + 1000);
+      const endTime = startTime + 30n * 24n * 60n * 60n;
+      await airdrop.openClaim(startTime, endTime);
+
+      // Try to claim before start time (don't advance time)
+      await expect(
+        airdrop.connect(buyer1).claim({
+          value: claimFee,
+        }),
+      ).to.be.revertedWith("LCAIAirdrop: Claim period has not started");
+    });
+
+    it("Should revert if claiming after claim period ends", async function () {
+      const { airdrop, claimFee } = await deployFixture();
+
+      // Configure claim with short duration
+      const currentBlock = await ethers.provider.getBlock("latest");
+      const startTime = BigInt(currentBlock!.timestamp + 100);
+      const endTime = startTime + 1000n; // Only 1000 seconds duration
+      await airdrop.openClaim(startTime, endTime);
+
+      // Advance past the end time
+      await networkHelpers.time.increase(2000);
+
+      // Try to claim after end time
+      await expect(
+        airdrop.connect(buyer1).claim({
+          value: claimFee,
+        }),
+      ).to.be.revertedWith("LCAIAirdrop: Claim period has ended");
     });
   });
 
@@ -361,7 +446,7 @@ describe("LCAIAirdrop", function () {
         .approve(await airdrop.getAddress(), depositAmount);
 
       await expect(
-        airdrop.connect(buyer1).deposit(depositAmount)
+        airdrop.connect(buyer1).deposit(depositAmount),
       ).to.be.revertedWithCustomError(airdrop, "OwnableUnauthorizedAccount");
     });
 
@@ -369,7 +454,7 @@ describe("LCAIAirdrop", function () {
       const { airdrop } = await deployFixture();
 
       await expect(airdrop.deposit(0n)).to.be.revertedWith(
-        "LCAIAirdrop: Amount must be greater than 0"
+        "LCAIAirdrop: Amount must be greater than 0",
       );
     });
   });
@@ -408,7 +493,7 @@ describe("LCAIAirdrop", function () {
       const withdrawAmount = parseEther("1000");
 
       await expect(
-        airdrop.connect(buyer1).withdraw(withdrawAmount)
+        airdrop.connect(buyer1).withdraw(withdrawAmount),
       ).to.be.revertedWithCustomError(airdrop, "OwnableUnauthorizedAccount");
     });
 
@@ -416,7 +501,7 @@ describe("LCAIAirdrop", function () {
       const { airdrop } = await deployFixture();
 
       await expect(airdrop.withdraw(0n)).to.be.revertedWith(
-        "LCAIAirdrop: Amount must be greater than 0"
+        "LCAIAirdrop: Amount must be greater than 0",
       );
     });
 
@@ -426,7 +511,7 @@ describe("LCAIAirdrop", function () {
       const excessiveAmount = parseEther("100000000");
 
       await expect(airdrop.withdraw(excessiveAmount)).to.be.revertedWith(
-        "LCAIAirdrop: Insufficient contract balance"
+        "LCAIAirdrop: Insufficient contract balance",
       );
     });
   });
@@ -455,7 +540,7 @@ describe("LCAIAirdrop", function () {
       const { airdrop } = await deployFixture();
 
       await expect(
-        airdrop.connect(buyer1).pause()
+        airdrop.connect(buyer1).pause(),
       ).to.be.revertedWithCustomError(airdrop, "OwnableUnauthorizedAccount");
     });
 
@@ -465,7 +550,7 @@ describe("LCAIAirdrop", function () {
       await airdrop.pause();
 
       await expect(
-        airdrop.connect(buyer1).unpause()
+        airdrop.connect(buyer1).unpause(),
       ).to.be.revertedWithCustomError(airdrop, "OwnableUnauthorizedAccount");
     });
   });
@@ -486,6 +571,8 @@ describe("LCAIAirdrop", function () {
 
     it("Should return zero for claimed buyer", async function () {
       const { airdrop, claimFee } = await deployFixture();
+
+      await setupDirectClaim(airdrop);
 
       await airdrop.connect(buyer1).claim({
         value: claimFee,
@@ -539,7 +626,7 @@ describe("LCAIAirdrop", function () {
       const { airdrop } = await deployFixture();
 
       await expect(
-        airdrop.connect(buyer1).setClaimFee(parseEther("0.02"))
+        airdrop.connect(buyer1).setClaimFee(parseEther("0.02")),
       ).to.be.revertedWithCustomError(airdrop, "OwnableUnauthorizedAccount");
     });
 
@@ -547,6 +634,8 @@ describe("LCAIAirdrop", function () {
       const { airdrop, token } = await deployFixture();
 
       await airdrop.setClaimFee(0n);
+
+      await setupDirectClaim(airdrop);
 
       const balanceBefore = await token.balanceOf(buyer1.address);
 
