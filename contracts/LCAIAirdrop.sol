@@ -122,10 +122,6 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
             "LCAIAirdrop: Reward percentage cannot exceed 100%"
         );
         require(
-            _startTime >= block.timestamp,
-            "LCAIAirdrop: Start time must be in the future"
-        );
-        require(
             _endTime > _startTime,
             "LCAIAirdrop: End time must be after start time"
         );
@@ -279,16 +275,21 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
         VestingConfig memory config = vestingConfig;
 
         uint256 elapsedTime = block.timestamp - vesting.vestingStartTime;
-        uint256 totalDuration = config.durationMonths * SECONDS_PER_MONTH;
 
-        // If vesting period complete, return all remaining
-        if (elapsedTime >= totalDuration) {
-            return vesting.totalVestingAmount - vesting.claimedVestingAmount;
+        // Calculate number of complete months passed (cliff-based monthly vesting)
+        // Each month unlocks after SECONDS_PER_MONTH has passed
+        uint256 completedMonths = elapsedTime / SECONDS_PER_MONTH;
+
+        // Cap at total duration
+        if (completedMonths >= config.durationMonths) {
+            completedMonths = config.durationMonths;
         }
 
-        // Linear vesting: (elapsedTime / totalDuration) * totalAmount
-        uint256 totalVested = (vesting.totalVestingAmount * elapsedTime) /
-            totalDuration;
+        // Calculate vested amount based on completed months
+        // Each month releases an equal portion of the total
+        uint256 totalVested = (vesting.totalVestingAmount * completedMonths) /
+            config.durationMonths;
+
         return totalVested - vesting.claimedVestingAmount;
     }
 
