@@ -213,7 +213,7 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
         uint256 purchaseAmount = lcaiPresale.buyersAmount(msg.sender);
         require(purchaseAmount > 0, "LCAIAirdrop: No amount to claim");
 
-        // Calculate vesting reward (higher than direct claim)
+        // Calculate vesting reward
         uint256 rewardAmount = (purchaseAmount *
             vestingConfig.rewardPercentage) / 100;
 
@@ -267,6 +267,11 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
         );
     }
 
+    /// @notice Calculates vested tokens using CLIFF-BASED MONTHLY unlocks with immediate first month
+    /// @dev First month unlocks immediately, then tokens unlock at the end of each 30-day period
+    /// @dev Example: 12-month vesting unlocks 8.33% immediately, then 8.33% every 30 days
+    /// @param user The address to check
+    /// @return The amount of tokens available to claim
     function getVestedAmount(address user) public view returns (uint256) {
         UserVesting memory vesting = userVesting[user];
 
@@ -280,15 +285,18 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
         // Each month unlocks after SECONDS_PER_MONTH has passed
         uint256 completedMonths = elapsedTime / SECONDS_PER_MONTH;
 
+        // Add 1 for the immediate first month reward
+        uint256 totalMonthsUnlocked = completedMonths + 1;
+
         // Cap at total duration
-        if (completedMonths >= config.durationMonths) {
-            completedMonths = config.durationMonths;
+        if (totalMonthsUnlocked > config.durationMonths) {
+            totalMonthsUnlocked = config.durationMonths;
         }
 
-        // Calculate vested amount based on completed months
+        // Calculate vested amount based on total unlocked months
         // Each month releases an equal portion of the total
-        uint256 totalVested = (vesting.totalVestingAmount * completedMonths) /
-            config.durationMonths;
+        uint256 totalVested = (vesting.totalVestingAmount *
+            totalMonthsUnlocked) / config.durationMonths;
 
         return totalVested - vesting.claimedVestingAmount;
     }

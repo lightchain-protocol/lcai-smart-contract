@@ -31,7 +31,6 @@ describe("LCAIAirdrop", function () {
     airdrop: any,
     durationMonths: bigint = 12n,
     rewardPercentage: bigint = 75n,
-    monthlyReleasePercentage: bigint = 10n,
   ) {
     const currentBlock = await ethers.provider.getBlock("latest");
     const startTime = BigInt(currentBlock!.timestamp + 100);
@@ -41,7 +40,6 @@ describe("LCAIAirdrop", function () {
       endTime,
       durationMonths,
       rewardPercentage,
-      monthlyReleasePercentage,
     );
     await networkHelpers.time.increase(150);
   }
@@ -647,6 +645,269 @@ describe("LCAIAirdrop", function () {
 
       // Verify that tokens were successfully claimed
       expect(balanceAfter).to.be.greaterThan(balanceBefore);
+    });
+  });
+
+  // ===== VESTING TESTS =====
+
+  describe("Vesting", function () {
+    it("Should allow user to claim with vesting option", async function () {
+      const { airdrop, claimFee } = await deployFixture();
+
+      await setupVestingConfig(airdrop);
+
+      await airdrop.connect(buyer1).claimWithVesting({
+        value: claimFee,
+      });
+
+      expect(await airdrop.claimed(buyer1.address)).to.equal(true);
+
+      const vesting = await airdrop.userVesting(buyer1.address);
+      expect(vesting.optedForVesting).to.equal(true);
+    });
+
+    it("Should give first month reward immediately upon vesting", async function () {
+      const { airdrop, token, rate, buyAmount, claimFee } =
+        await deployFixture();
+
+      await setupVestingConfig(airdrop, 12n, 75n); // 12 months, 75% reward
+
+      const purchaseAmount = (buyAmount * 10n ** 18n) / rate;
+      const expectedTotalVesting = (purchaseAmount * 75n) / 100n;
+      const expectedFirstMonth = expectedTotalVesting / 12n;
+
+      // Claim with vesting
+      await airdrop.connect(buyer1).claimWithVesting({
+        value: claimFee,
+      });
+
+      // Check available amount immediately (should be 1/12)
+      const availableAmount = await airdrop.getVestedAmount(buyer1.address);
+      expect(availableAmount).to.equal(expectedFirstMonth);
+
+      // Claim the first month immediately
+      const balanceBefore = await token.balanceOf(buyer1.address);
+      await airdrop.connect(buyer1).claimVested();
+      const balanceAfter = await token.balanceOf(buyer1.address);
+
+      expect(balanceAfter - balanceBefore).to.equal(expectedFirstMonth);
+    });
+
+    it("Should unlock second month after 30 days", async function () {
+      const { airdrop, rate, buyAmount, claimFee } = await deployFixture();
+
+      await setupVestingConfig(airdrop, 12n, 75n);
+
+      const purchaseAmount = (buyAmount * 10n ** 18n) / rate;
+      const expectedTotalVesting = (purchaseAmount * 75n) / 100n;
+      const expectedPerMonth = expectedTotalVesting / 12n;
+
+      // Claim with vesting
+      await airdrop.connect(buyer1).claimWithVesting({
+        value: claimFee,
+      });
+
+      // Claim first month
+      await airdrop.connect(buyer1).claimVested();
+
+      // Fast forward 30 days
+      await networkHelpers.time.increase(30 * 24 * 60 * 60);
+
+      // Check available amount (should be another 1/12)
+      const availableAmount = await airdrop.getVestedAmount(buyer1.address);
+      expect(availableAmount).to.equal(expectedPerMonth);
+
+      // Claim second month
+      await airdrop.connect(buyer1).claimVested();
+
+      // Total claimed should be 2/12
+      const vesting = await airdrop.userVesting(buyer1.address);
+      expect(vesting.claimedVestingAmount).to.equal(expectedPerMonth * 2n);
+    });
+
+    it("Should not allow claiming more than total vesting amount", async function () {
+      const { airdrop, rate, buyAmount, claimFee } = await deployFixture();
+
+      await setupVestingConfig(airdrop, 12n, 75n);
+
+      const purchaseAmount = (buyAmount * 10n ** 18n) / rate;
+      const expectedTotalVesting = (purchaseAmount * 75n) / 100n;
+
+      // Claim with vesting
+      await airdrop.connect(buyer1).claimWithVesting({
+        value: claimFee,
+      });
+
+      // Fast forward past all 12 months (365 days)
+      await networkHelpers.time.increase(365 * 24 * 60 * 60);
+
+      // Claim all vested tokens
+      await airdrop.connect(buyer1).claimVested();
+
+      const vesting = await airdrop.userVesting(buyer1.address);
+      expect(vesting.claimedVestingAmount).to.equal(expectedTotalVesting);
+
+      // Try to claim again - should have 0 available
+      const availableAmount = await airdrop.getVestedAmount(buyer1.address);
+      expect(availableAmount).to.equal(0n);
+
+      // Try to claim again - should revert
+      await expect(
+        airdrop.connect(buyer1).claimVested(),
+      ).to.be.revertedWith("LCAIAirdrop: No vested amount available");
+    });
+
+    it("Should calculate vesting correctly for 12 months with immediate first month", async function () {
+      const { airdrop, rate, buyAmount, claimFee } = await deployFixture();
+
+      await setupVestingConfig(airdrop, 12n, 75n);
+
+      const purchaseAmount = (buyAmount * 10n ** 18n) / rate;
+      const expectedTotalVesting = (purchaseAmount * 75n) / 100n;
+      const expectedPerMonth = expectedTotalVesting / 12n;
+
+      // Claim with vesting
+      await airdrop.connect(buyer1).claimWithVesting({
+        value: claimFee,
+      });
+
+      // Month 0 (immediate): 1/12
+      let available = await airdrop.getVestedAmount(buyer1.address);
+      expect(available).to.equal(expectedPerMonth);
+
+      // Month 1 (after 30 days): 2/12 total
+      await networkHelpers.time.increase(30 * 24 * 60 * 60);
+      available = await airdrop.getVestedAmount(buyer1.address);
+      expect(available).to.equal(expectedPerMonth * 2n);
+
+      // Month 2 (after 60 days): 3/12 total
+      await networkHelpers.time.increase(30 * 24 * 60 * 60);
+      available = await airdrop.getVestedAmount(buyer1.address);
+      expect(available).to.equal(expectedPerMonth * 3n);
+
+      // Month 11 (after 330 days): 12/12 total
+      await networkHelpers.time.increase(270 * 24 * 60 * 60);
+      available = await airdrop.getVestedAmount(buyer1.address);
+      expect(available).to.equal(expectedTotalVesting);
+
+      // Beyond 12 months: still 12/12
+      await networkHelpers.time.increase(100 * 24 * 60 * 60);
+      available = await airdrop.getVestedAmount(buyer1.address);
+      expect(available).to.equal(expectedTotalVesting);
+    });
+
+    it("Should prevent claiming vested tokens if user didn't opt for vesting", async function () {
+      const { airdrop } = await deployFixture();
+
+      await expect(
+        airdrop.connect(buyer1).claimVested(),
+      ).to.be.revertedWith("LCAIAirdrop: User did not opt for vesting");
+    });
+
+    it("Should revert if claiming with vesting before vesting period starts", async function () {
+      const { airdrop, claimFee } = await deployFixture();
+
+      const currentBlock = await ethers.provider.getBlock("latest");
+      const startTime = BigInt(currentBlock!.timestamp + 1000);
+      const endTime = startTime + 30n * 24n * 60n * 60n;
+
+      await airdrop.openVesting(startTime, endTime, 12n, 75n);
+
+      await expect(
+        airdrop.connect(buyer1).claimWithVesting({
+          value: claimFee,
+        }),
+      ).to.be.revertedWith("LCAIAirdrop: Vesting period has not started");
+    });
+
+    it("Should revert if claiming with vesting after vesting period ends", async function () {
+      const { airdrop, claimFee } = await deployFixture();
+
+      const currentBlock = await ethers.provider.getBlock("latest");
+      const startTime = BigInt(currentBlock!.timestamp + 100);
+      const endTime = startTime + 1000n;
+
+      await airdrop.openVesting(startTime, endTime, 12n, 75n);
+
+      // Advance past the end time
+      await networkHelpers.time.increase(2000);
+
+      await expect(
+        airdrop.connect(buyer1).claimWithVesting({
+          value: claimFee,
+        }),
+      ).to.be.revertedWith("LCAIAirdrop: Vesting period has ended");
+    });
+
+    it("Should return correct vesting info", async function () {
+      const { airdrop, rate, buyAmount, claimFee } = await deployFixture();
+
+      await setupVestingConfig(airdrop, 12n, 75n);
+
+      const purchaseAmount = (buyAmount * 10n ** 18n) / rate;
+      const expectedTotalVesting = (purchaseAmount * 75n) / 100n;
+
+      // Claim with vesting
+      await airdrop.connect(buyer1).claimWithVesting({
+        value: claimFee,
+      });
+
+      const vestingInfo = await airdrop.getVestingInfo(buyer1.address);
+
+      expect(vestingInfo.optedForVesting).to.equal(true);
+      expect(vestingInfo.totalVestingAmount).to.equal(expectedTotalVesting);
+      expect(vestingInfo.claimedVestingAmount).to.equal(0n);
+      expect(vestingInfo.availableAmount).to.equal(expectedTotalVesting / 12n);
+      expect(vestingInfo.vestingStartTime).to.be.greaterThan(0n);
+      expect(vestingInfo.vestingEndTime).to.be.greaterThan(
+        vestingInfo.vestingStartTime,
+      );
+    });
+
+    it("Should prevent user from claiming both direct and vesting rewards", async function () {
+      const { airdrop, claimFee } = await deployFixture();
+
+      await setupDirectClaim(airdrop);
+      await setupVestingConfig(airdrop);
+
+      // Claim direct reward first
+      await airdrop.connect(buyer1).claim({
+        value: claimFee,
+      });
+
+      // Try to claim with vesting - should fail because already claimed
+      await expect(
+        airdrop.connect(buyer1).claimWithVesting({
+          value: claimFee,
+        }),
+      ).to.be.revertedWith("LCAIAirdrop: Already claimed");
+    });
+
+    it("Should return correct vesting amount before claiming", async function () {
+      const { airdrop, rate, buyAmount } = await deployFixture();
+
+      await setupVestingConfig(airdrop, 12n, 75n);
+
+      const purchaseAmount = (buyAmount * 10n ** 18n) / rate;
+      const expectedVestingAmount = (purchaseAmount * 75n) / 100n;
+
+      const vestingAmount = await airdrop.getVestingAmount(buyer1.address);
+
+      expect(vestingAmount).to.equal(expectedVestingAmount);
+    });
+
+    it("Should return zero vesting amount after claiming", async function () {
+      const { airdrop, claimFee } = await deployFixture();
+
+      await setupVestingConfig(airdrop);
+
+      await airdrop.connect(buyer1).claimWithVesting({
+        value: claimFee,
+      });
+
+      const vestingAmount = await airdrop.getVestingAmount(buyer1.address);
+
+      expect(vestingAmount).to.equal(0n);
     });
   });
 });
