@@ -21,10 +21,6 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
 
     ILCAIPresale public lcaiPresale;
     address public token;
-    address payable public treasury;
-
-    uint256 public claimFee; // Fee in ETH required to claim
-    uint256 public totalFeesCollected;
 
     uint256 public totalClaimedAmount;
     mapping(address => uint256) public claimedAmount;
@@ -60,8 +56,8 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
     mapping(address => UserVesting) public userVesting;
 
     event ClaimOpened(uint256 startTime, uint256 endTime);
-    event Claimed(address indexed user, uint256 amount, uint256 feePaid);
-    event VestingClaimed(address indexed user, uint256 amount, bool isVesting);
+    event Claimed(address indexed user, uint256 amount);
+    event VestingClaimed(address indexed user, uint256 amount);
     event VestingConfigured(
         uint256 durationMonths,
         uint256 rewardPercentage,
@@ -75,11 +71,6 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
     );
     event TokensDeposited(address indexed from, uint256 amount);
     event TokensWithdrawn(address indexed to, uint256 amount);
-    event ClaimFeeUpdated(uint256 oldFee, uint256 newFee);
-    event TreasuryUpdated(
-        address indexed oldTreasury,
-        address indexed newTreasury
-    );
     event TokensRecovered(
         address indexed user,
         address indexed token,
@@ -91,22 +82,14 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
         _;
     }
 
-    constructor(
-        address _lcaiPresale,
-        address payable _treasury
-    ) Ownable(msg.sender) {
+    constructor(address _lcaiPresale) Ownable(msg.sender) {
         require(
             _lcaiPresale != address(0),
             "LCAIAirdrop: Invalid presale address"
         );
-        require(
-            _treasury != address(0),
-            "LCAIAirdrop: Invalid treasury address"
-        );
         lcaiPresale = ILCAIPresale(_lcaiPresale);
         token = lcaiPresale.saleToken();
         require(token != address(0), "LCAIAirdrop: Invalid token address");
-        treasury = _treasury;
     }
 
     function openVesting(
@@ -153,7 +136,7 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
         emit ClaimOpened(_startTime, _endTime);
     }
 
-    function claim() external payable nonReentrant whenNotPaused notClaimed {
+    function claim() external nonReentrant whenNotPaused notClaimed {
         require(claimEnabled, "LCAIAirdrop: Claim not configured");
         require(
             block.timestamp >= claimConfig.startTime,
@@ -163,7 +146,6 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
             block.timestamp <= claimConfig.endTime,
             "LCAIAirdrop: Claim period has ended"
         );
-        require(msg.value == claimFee, "LCAIAirdrop: Insufficient claim fee");
 
         uint256 purchaseAmount = lcaiPresale.buyersAmount(msg.sender);
         require(purchaseAmount > 0, "LCAIAirdrop: No amount to claim");
@@ -179,26 +161,13 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
         claimed[msg.sender] = true;
         claimedAmount[msg.sender] = rewardAmount;
         totalClaimedAmount += rewardAmount;
-        totalFeesCollected += claimFee;
 
         IERC20(token).safeTransfer(msg.sender, rewardAmount);
 
-        if (claimFee > 0) {
-            (bool success, ) = treasury.call{value: claimFee}("");
-            require(success, "LCAIAirdrop: Fee transfer to treasury failed");
-        }
-
-        emit Claimed(msg.sender, rewardAmount, claimFee);
-        emit VestingClaimed(msg.sender, rewardAmount, false);
+        emit Claimed(msg.sender, rewardAmount);
     }
 
-    function claimWithVesting()
-        external
-        payable
-        nonReentrant
-        whenNotPaused
-        notClaimed
-    {
+    function claimWithVesting() external nonReentrant whenNotPaused notClaimed {
         require(vestingEnabled, "LCAIAirdrop: Vesting not configured");
         require(
             block.timestamp >= vestingConfig.startTime,
@@ -208,7 +177,6 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
             block.timestamp <= vestingConfig.endTime,
             "LCAIAirdrop: Vesting period has ended"
         );
-        require(msg.value == claimFee, "LCAIAirdrop: Insufficient claim fee");
 
         uint256 purchaseAmount = lcaiPresale.buyersAmount(msg.sender);
         require(purchaseAmount > 0, "LCAIAirdrop: No amount to claim");
@@ -227,16 +195,8 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
 
         claimed[msg.sender] = true;
         claimedAmount[msg.sender] = 0; // Nothing claimed yet, will claim via claimVested
-        totalFeesCollected += claimFee;
 
-        // Transfer claim fee to treasury
-        if (claimFee > 0) {
-            (bool success, ) = treasury.call{value: claimFee}("");
-            require(success, "LCAIAirdrop: Fee transfer to treasury failed");
-        }
-
-        emit Claimed(msg.sender, rewardAmount, claimFee);
-        emit VestingClaimed(msg.sender, rewardAmount, true);
+        emit VestingClaimed(msg.sender, rewardAmount);
     }
 
     function claimVested() external nonReentrant whenNotPaused {
@@ -377,21 +337,5 @@ contract LCAIAirdrop is Ownable, Pausable, ReentrancyGuard {
 
     function unpause() external onlyOwner {
         _unpause();
-    }
-
-    function setTreasury(address payable _newTreasury) external onlyOwner {
-        require(
-            _newTreasury != address(0),
-            "LCAIAirdrop: Invalid treasury address"
-        );
-        address oldTreasury = treasury;
-        treasury = _newTreasury;
-        emit TreasuryUpdated(oldTreasury, _newTreasury);
-    }
-
-    function setClaimFee(uint256 _claimFee) external onlyOwner {
-        uint256 oldFee = claimFee;
-        claimFee = _claimFee;
-        emit ClaimFeeUpdated(oldFee, _claimFee);
     }
 }
