@@ -31,6 +31,20 @@ contract NodeOnboarding is INodeOnboarding, Ownable, ReentrancyGuard {
     mapping(address => bool) public reporters;
     mapping(bytes32 => bool) public allowedMrEnclaves;
 
+    event ReporterUpdated(address indexed reporter, bool isActive, address indexed caller);
+    event AttestationVerifierUpdated(address indexed verifier, address indexed caller);
+    event RequirementsUpdated(
+        uint256 minValidatorStake,
+        uint256 minWorkerStake,
+        uint256 unbondingPeriod,
+        address indexed caller
+    );
+    event MinTcbStatusUpdated(uint256 minTcbStatus, address indexed caller);
+    event HeartbeatTimeoutUpdated(uint256 timeoutSeconds, address indexed caller);
+    event EnclaveAllowlistEnforcementUpdated(bool enforce, address indexed caller);
+    event MrEnclaveAllowedUpdated(bytes32 indexed mrEnclave, bool allowed, address indexed caller);
+    event WorkerVerified(address indexed worker, bool isValid, address indexed reporter);
+
     modifier onlyReporter() {
         require(reporters[msg.sender] || msg.sender == owner(), "Not authorized reporter");
         _;
@@ -57,30 +71,37 @@ contract NodeOnboarding is INodeOnboarding, Ownable, ReentrancyGuard {
         minValidatorStake = _minValidatorStake;
         minWorkerStake = _minWorkerStake;
         unbondingPeriod = _unbondingPeriod;
+        emit RequirementsUpdated(_minValidatorStake, _minWorkerStake, _unbondingPeriod, msg.sender);
     }
 
     function setReporter(address reporter, bool isActive) external onlyOwner {
         reporters[reporter] = isActive;
+        emit ReporterUpdated(reporter, isActive, msg.sender);
     }
 
     function setAttestationVerifier(address verifier) external onlyOwner {
         attestationVerifier = IAttestationVerifier(verifier);
+        emit AttestationVerifierUpdated(verifier, msg.sender);
     }
 
     function setMinTcbStatus(uint256 minStatus) external onlyOwner {
         minTcbStatus = minStatus;
+        emit MinTcbStatusUpdated(minStatus, msg.sender);
     }
 
     function setHeartbeatTimeout(uint256 timeoutSeconds) external onlyOwner {
         heartbeatTimeout = timeoutSeconds;
+        emit HeartbeatTimeoutUpdated(timeoutSeconds, msg.sender);
     }
 
     function setEnforceEnclaveAllowlist(bool enforce) external onlyOwner {
         enforceEnclaveAllowlist = enforce;
+        emit EnclaveAllowlistEnforcementUpdated(enforce, msg.sender);
     }
 
     function setMrEnclaveAllowed(bytes32 mrEnclave, bool allowed) external onlyOwner {
         allowedMrEnclaves[mrEnclave] = allowed;
+        emit MrEnclaveAllowedUpdated(mrEnclave, allowed, msg.sender);
     }
 
     // ==========================================
@@ -206,6 +227,7 @@ contract NodeOnboarding is INodeOnboarding, Ownable, ReentrancyGuard {
     function verifyWorker(address worker, bool isValid) external override onlyReporter {
         require(nodeTypes[worker] == NodeType.Worker, "Not a worker");
         workers[worker].isVerified = isValid;
+        emit WorkerVerified(worker, isValid, msg.sender);
     }
 
     function setWorkerModelsReady(address worker, bool isReady) external override onlyReporter {
