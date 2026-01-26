@@ -12,6 +12,7 @@ This folder contains scripts for deploying smart contracts.
 ### Individual Contract Deployments
 - **`deploy-lcai-treasury.ts`** - Deploy LCAITreasury contract
 - **`deploy-lcai-chat-subscription.ts`** - Deploy LCAIChatSubscription contract
+- **`deploy-node-onboarding.ts`** - Deploy NodeStaking + NodeOnboarding with attestation policy defaults
 
 ## Usage
 
@@ -26,6 +27,9 @@ npx hardhat run scripts/deployment/deploy-smart-contracts.ts --network <network-
 
 # Deploy chat utility only
 npx hardhat run scripts/deployment/deploy-chat-utility.ts --network <network-name>
+
+# Deploy node onboarding contracts
+npx hardhat run scripts/deployment/deploy-node-onboarding.ts --network <network-name>
 ```
 
 ### Deploy Individual Contracts
@@ -86,6 +90,37 @@ npx hardhat run scripts/deployment/deploy-lcai-chat-subscription.ts --network <n
 - Tier 1: 2 LCAI/month, 20 LCAI/year
 - Tier 2: 5 LCAI/month, 50 LCAI/year
 - Tier 3: 10 LCAI/month, 100 LCAI/year
+
+#### NodeStaking + NodeOnboarding
+
+```bash
+# Deploy with defaults
+npx hardhat run scripts/deployment/deploy-node-onboarding.ts --network <network-name>
+
+# Optional overrides
+export MIN_VALIDATOR_STAKE_ETH=32
+export MIN_WORKER_STAKE_ETH=1
+export UNBONDING_PERIOD_SECONDS=604800
+export ATTESTATION_VERIFIER_ADDRESS=0xYourVerifierAddress
+export ENFORCE_ENCLAVE_ALLOWLIST=true
+export MR_ENCLAVE_ALLOWLIST=0xYourMrEnclaveHash,0xAnotherMrEnclaveHash
+export MIN_TCB_STATUS=1
+export HEARTBEAT_TIMEOUT_SECONDS=300
+
+npx hardhat run scripts/deployment/deploy-node-onboarding.ts --network <network-name>
+```
+
+**Defaults:**
+- `MIN_VALIDATOR_STAKE_ETH`: 32
+- `MIN_WORKER_STAKE_ETH`: 1
+- `UNBONDING_PERIOD_SECONDS`: 604800 (7 days)
+- `ENFORCE_ENCLAVE_ALLOWLIST`: true
+- `MIN_TCB_STATUS`: 1
+- `HEARTBEAT_TIMEOUT_SECONDS`: 300
+
+**Notes:**
+- If `ATTESTATION_VERIFIER_ADDRESS` is unset, attestation checks are disabled and `isAttested` stays false.
+- If allowlist enforcement is enabled without any `MR_ENCLAVE_ALLOWLIST` entries, all attestations will be rejected.
 
 ## Example Workflow
 
@@ -189,4 +224,3 @@ Before mainnet deployment:
 - [ ] Verify role assignments
 - [ ] Document all admin keys/addresses
 - [ ] Set up monitoring for contract events
-
