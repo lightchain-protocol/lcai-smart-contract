@@ -3,6 +3,7 @@ import hre from "hardhat";
 import { parseEther } from "ethers";
 
 const { network } = hre;
+// @ts-ignore
 let ethers: typeof hre.ethers;
 let networkHelpers: any;
 let deployer: any;
@@ -315,12 +316,7 @@ describe("LCAIChatSubscription", function () {
     const { subscription, paymentToken } = await deploySubscriptionContract();
 
     // Admin deactivates tier 1
-    await subscription.connect(admin).updatePlanPrice(
-      TIER_1,
-      parseEther("2"),
-      parseEther("20"),
-      false // inactive
-    );
+    await subscription.connect(admin).togglePlanStatus(TIER_1);
 
     const tier1Monthly = parseEther("2");
 
@@ -437,18 +433,21 @@ describe("LCAIChatSubscription", function () {
     const newMonthlyPrice = parseEther("0.02");
     const newYearlyPrice = parseEther("0.2");
 
+    // Get initial isActive status
+    const [, , initialIsActive] = await subscription.getPlan(TIER_1);
+
     await expect(
       subscription
         .connect(admin)
-        .updatePlanPrice(TIER_1, newMonthlyPrice, newYearlyPrice, true)
+        .updatePlanPrice(TIER_1, newMonthlyPrice, newYearlyPrice)
     )
       .to.emit(subscription, "PlanPriceUpdated")
-      .withArgs(TIER_1, newMonthlyPrice, newYearlyPrice, true);
+      .withArgs(TIER_1, newMonthlyPrice, newYearlyPrice);
 
     const [monthly, yearly, isActive] = await subscription.getPlan(TIER_1);
     expect(monthly).to.equal(newMonthlyPrice);
     expect(yearly).to.equal(newYearlyPrice);
-    expect(isActive).to.equal(true);
+    expect(isActive).to.equal(initialIsActive); // Should preserve isActive status
   });
 
   it("Should reject price update with zero price", async function () {
@@ -457,13 +456,13 @@ describe("LCAIChatSubscription", function () {
     await expect(
       subscription
         .connect(admin)
-        .updatePlanPrice(TIER_1, 0, parseEther("20"), true)
+        .updatePlanPrice(TIER_1, 0, parseEther("20"))
     ).to.be.revertedWithCustomError(subscription, "InvalidPrice");
 
     await expect(
       subscription
         .connect(admin)
-        .updatePlanPrice(TIER_1, parseEther("2"), 0, true)
+        .updatePlanPrice(TIER_1, parseEther("2"), 0)
     ).to.be.revertedWithCustomError(subscription, "InvalidPrice");
   });
 
@@ -473,7 +472,7 @@ describe("LCAIChatSubscription", function () {
     await expect(
       subscription
         .connect(nonAdmin)
-        .updatePlanPrice(TIER_1, parseEther("0.02"), parseEther("0.2"), true)
+        .updatePlanPrice(TIER_1, parseEther("0.02"), parseEther("0.2"))
     ).to.be.revertedWithCustomError(subscription, "Unauthorized");
   });
 
@@ -520,14 +519,14 @@ describe("LCAIChatSubscription", function () {
     await expect(
       subscription
         .connect(user2)
-        .updatePlanPrice(TIER_1, parseEther("0.02"), parseEther("0.2"), true)
+        .updatePlanPrice(TIER_1, parseEther("0.02"), parseEther("0.2"))
     ).to.emit(subscription, "PlanPriceUpdated");
 
     // Old admin should no longer be able to update prices
     await expect(
       subscription
         .connect(admin)
-        .updatePlanPrice(TIER_1, parseEther("0.02"), parseEther("0.2"), true)
+        .updatePlanPrice(TIER_1, parseEther("0.02"), parseEther("0.2"))
     ).to.be.revertedWithCustomError(subscription, "Unauthorized");
   });
 
@@ -771,7 +770,7 @@ describe("LCAIChatSubscription", function () {
     const newPrice = parseEther("25");
     await subscription
       .connect(admin)
-      .updatePlanPrice(TIER_1, newPrice, parseEther("205"), true);
+      .updatePlanPrice(TIER_1, newPrice, parseEther("205"));
 
     // Setup tokens for user1 to try renewal (should fail because subscription is active)
     await setupTokensForUser(paymentToken, subscription, user1, newPrice);
@@ -812,5 +811,167 @@ describe("LCAIChatSubscription", function () {
         value: parseEther("1"),
       })
     ).to.be.revertedWith("This contract uses ERC20 payments only");
+  });
+
+  // ===== NEW FUNCTION TESTS =====
+
+  it("Should allow admin to toggle plan status", async function () {
+    const { subscription } = await deploySubscriptionContract();
+
+    // Initially active
+    const [, , initialIsActive] = await subscription.getPlan(TIER_1);
+    expect(initialIsActive).to.equal(true);
+
+    // Toggle to inactive
+    await expect(subscription.connect(admin).togglePlanStatus(TIER_1))
+      .to.emit(subscription, "PlanStatusToggled")
+      .withArgs(TIER_1, false);
+
+    const [, , afterToggle] = await subscription.getPlan(TIER_1);
+    expect(afterToggle).to.equal(false);
+
+    // Toggle back to active
+    await expect(subscription.connect(admin).togglePlanStatus(TIER_1))
+      .to.emit(subscription, "PlanStatusToggled")
+      .withArgs(TIER_1, true);
+
+    const [, , afterSecondToggle] = await subscription.getPlan(TIER_1);
+    expect(afterSecondToggle).to.equal(true);
+  });
+
+  it("Should reject toggle plan status from non-admin", async function () {
+    const { subscription } = await deploySubscriptionContract();
+
+    await expect(
+      subscription.connect(nonAdmin).togglePlanStatus(TIER_1)
+    ).to.be.revertedWithCustomError(subscription, "Unauthorized");
+  });
+
+  it("Should reject toggle plan status with invalid tier", async function () {
+    const { subscription } = await deploySubscriptionContract();
+
+    await expect(
+      subscription.connect(admin).togglePlanStatus(10)
+    ).to.be.revertedWithCustomError(subscription, "InvalidTier");
+  });
+
+  it("Should allow admin to update all plan prices together", async function () {
+    const { subscription } = await deploySubscriptionContract();
+
+    const newMonthlyPrices = [
+      parseEther("3"),
+      parseEther("6"),
+      parseEther("12"),
+    ];
+    const newYearlyPrices = [
+      parseEther("30"),
+      parseEther("60"),
+      parseEther("120"),
+    ];
+
+    // Get initial isActive statuses
+    const [, , tier1Active] = await subscription.getPlan(TIER_1);
+    const [, , tier2Active] = await subscription.getPlan(TIER_2);
+    const [, , tier3Active] = await subscription.getPlan(TIER_3);
+
+    await expect(
+      subscription
+        .connect(admin)
+        .updateAllPlanPrices(newMonthlyPrices, newYearlyPrices)
+    )
+      .to.emit(subscription, "PlanPriceUpdated")
+      .withArgs(TIER_1, newMonthlyPrices[0], newYearlyPrices[0])
+      .and.to.emit(subscription, "PlanPriceUpdated")
+      .withArgs(TIER_2, newMonthlyPrices[1], newYearlyPrices[1])
+      .and.to.emit(subscription, "PlanPriceUpdated")
+      .withArgs(TIER_3, newMonthlyPrices[2], newYearlyPrices[2]);
+
+    // Verify all prices updated
+    const [tier1Monthly, tier1Yearly, tier1IsActive] =
+      await subscription.getPlan(TIER_1);
+    const [tier2Monthly, tier2Yearly, tier2IsActive] =
+      await subscription.getPlan(TIER_2);
+    const [tier3Monthly, tier3Yearly, tier3IsActive] =
+      await subscription.getPlan(TIER_3);
+
+    expect(tier1Monthly).to.equal(newMonthlyPrices[0]);
+    expect(tier1Yearly).to.equal(newYearlyPrices[0]);
+    expect(tier1IsActive).to.equal(tier1Active); // Preserved
+
+    expect(tier2Monthly).to.equal(newMonthlyPrices[1]);
+    expect(tier2Yearly).to.equal(newYearlyPrices[1]);
+    expect(tier2IsActive).to.equal(tier2Active); // Preserved
+
+    expect(tier3Monthly).to.equal(newMonthlyPrices[2]);
+    expect(tier3Yearly).to.equal(newYearlyPrices[2]);
+    expect(tier3IsActive).to.equal(tier3Active); // Preserved
+  });
+
+  it("Should reject updateAllPlanPrices with zero price", async function () {
+    const { subscription } = await deploySubscriptionContract();
+
+    const monthlyPrices = [parseEther("3"), parseEther("6"), parseEther("12")];
+    const yearlyPrices = [parseEther("30"), parseEther("60"), parseEther("120")];
+
+    // Test zero monthly price
+    const invalidMonthly = [0n, parseEther("6"), parseEther("12")];
+    await expect(
+      subscription
+        .connect(admin)
+        .updateAllPlanPrices(invalidMonthly, yearlyPrices)
+    ).to.be.revertedWithCustomError(subscription, "InvalidPrice");
+
+    // Test zero yearly price
+    const invalidYearly = [parseEther("30"), 0n, parseEther("120")];
+    await expect(
+      subscription
+        .connect(admin)
+        .updateAllPlanPrices(monthlyPrices, invalidYearly)
+    ).to.be.revertedWithCustomError(subscription, "InvalidPrice");
+  });
+
+  it("Should reject updateAllPlanPrices from non-admin", async function () {
+    const { subscription } = await deploySubscriptionContract();
+
+    const monthlyPrices = [parseEther("3"), parseEther("6"), parseEther("12")];
+    const yearlyPrices = [parseEther("30"), parseEther("60"), parseEther("120")];
+
+    await expect(
+      subscription
+        .connect(nonAdmin)
+        .updateAllPlanPrices(monthlyPrices, yearlyPrices)
+    ).to.be.revertedWithCustomError(subscription, "Unauthorized");
+  });
+
+  it("Should preserve isActive status when updating prices", async function () {
+    const { subscription } = await deploySubscriptionContract();
+
+    // Deactivate tier 1
+    await subscription.connect(admin).togglePlanStatus(TIER_1);
+    const [, , isActiveBefore] = await subscription.getPlan(TIER_1);
+    expect(isActiveBefore).to.equal(false);
+
+    // Update prices
+    await subscription
+      .connect(admin)
+      .updatePlanPrice(TIER_1, parseEther("5"), parseEther("50"));
+
+    // Verify isActive status preserved
+    const [, , isActiveAfter] = await subscription.getPlan(TIER_1);
+    expect(isActiveAfter).to.equal(false);
+
+    // Activate tier 1
+    await subscription.connect(admin).togglePlanStatus(TIER_1);
+    const [, , isActiveAfterToggle] = await subscription.getPlan(TIER_1);
+    expect(isActiveAfterToggle).to.equal(true);
+
+    // Update prices again
+    await subscription
+      .connect(admin)
+      .updatePlanPrice(TIER_1, parseEther("7"), parseEther("70"));
+
+    // Verify isActive status still preserved
+    const [, , isActiveFinal] = await subscription.getPlan(TIER_1);
+    expect(isActiveFinal).to.equal(true);
   });
 });

@@ -3,6 +3,7 @@ import hre from "hardhat";
 import { parseEther } from "ethers";
 
 const { network } = hre;
+// @ts-ignore
 let ethers: typeof hre.ethers;
 let networkHelpers: any;
 let deployer: any;
@@ -79,8 +80,8 @@ describe("LCAITreasury", function () {
     expect(adminAddress).to.equal(await adminContract.getAddress());
 
     // Check initial state
-    expect(await treasury.isWhitelisted()).to.equal(false);
-    expect(await treasury.isBlacklisted()).to.equal(false);
+    expect(await treasury.isWhitelistEnabled()).to.equal(false);
+    expect(await treasury.isBlacklistEnabled()).to.equal(false);
     expect(await treasury.paused()).to.equal(false);
   });
 
@@ -358,12 +359,12 @@ describe("LCAITreasury", function () {
     const { treasury, adminContract } = await deployLCAITreasuryContracts();
 
     await expect(
-      callAsAdmin(adminContract, treasury, "updateWhitelistedStatus", [true])
+      callAsAdmin(adminContract, treasury, "updateWhitelistStatus", [true])
     )
       .to.emit(treasury, "WhitelistedStatusUpdated")
       .withArgs(false, true);
 
-    expect(await treasury.isWhitelisted()).to.equal(true);
+    expect(await treasury.isWhitelistEnabled()).to.equal(true);
   });
 
   it("Should block ETH transfers to non-whitelisted addresses when whitelist is enabled", async function () {
@@ -371,7 +372,7 @@ describe("LCAITreasury", function () {
     await fundTreasuryETH(treasury, "10");
 
     // Enable whitelist mode
-    await callAsAdmin(adminContract, treasury, "updateWhitelistedStatus", [
+    await callAsAdmin(adminContract, treasury, "updateWhitelistStatus", [
       true,
     ]);
 
@@ -388,7 +389,7 @@ describe("LCAITreasury", function () {
     await fundTreasuryETH(treasury, "10");
 
     // Enable whitelist mode
-    await callAsAdmin(adminContract, treasury, "updateWhitelistedStatus", [
+    await callAsAdmin(adminContract, treasury, "updateWhitelistStatus", [
       true,
     ]);
 
@@ -415,7 +416,7 @@ describe("LCAITreasury", function () {
     await fundTreasuryERC20(treasury, token, "100");
 
     // Enable whitelist mode
-    await callAsAdmin(adminContract, treasury, "updateWhitelistedStatus", [
+    await callAsAdmin(adminContract, treasury, "updateWhitelistStatus", [
       true,
     ]);
 
@@ -437,7 +438,7 @@ describe("LCAITreasury", function () {
     await fundTreasuryERC20(treasury, token, "100");
 
     // Enable whitelist mode
-    await callAsAdmin(adminContract, treasury, "updateWhitelistedStatus", [
+    await callAsAdmin(adminContract, treasury, "updateWhitelistStatus", [
       true,
     ]);
 
@@ -515,12 +516,12 @@ describe("LCAITreasury", function () {
     const { treasury, adminContract } = await deployLCAITreasuryContracts();
 
     await expect(
-      callAsAdmin(adminContract, treasury, "updateBlacklistedStatus", [true])
+      callAsAdmin(adminContract, treasury, "updateBlacklistStatus", [true])
     )
       .to.emit(treasury, "BlacklistedStatusUpdated")
       .withArgs(false, true);
 
-    expect(await treasury.isBlacklisted()).to.equal(true);
+    expect(await treasury.isBlacklistEnabled()).to.equal(true);
   });
 
   it("Should block ETH transfers to blacklisted addresses when blacklist is enabled", async function () {
@@ -528,7 +529,7 @@ describe("LCAITreasury", function () {
     await fundTreasuryETH(treasury, "10");
 
     // Enable blacklist mode
-    await callAsAdmin(adminContract, treasury, "updateBlacklistedStatus", [
+    await callAsAdmin(adminContract, treasury, "updateBlacklistStatus", [
       true,
     ]);
 
@@ -551,7 +552,7 @@ describe("LCAITreasury", function () {
     await fundTreasuryETH(treasury, "10");
 
     // Enable blacklist mode
-    await callAsAdmin(adminContract, treasury, "updateBlacklistedStatus", [
+    await callAsAdmin(adminContract, treasury, "updateBlacklistStatus", [
       true,
     ]);
 
@@ -578,7 +579,7 @@ describe("LCAITreasury", function () {
     await fundTreasuryERC20(treasury, token, "100");
 
     // Enable blacklist mode
-    await callAsAdmin(adminContract, treasury, "updateBlacklistedStatus", [
+    await callAsAdmin(adminContract, treasury, "updateBlacklistStatus", [
       true,
     ]);
 
@@ -606,7 +607,7 @@ describe("LCAITreasury", function () {
     await fundTreasuryERC20(treasury, token, "100");
 
     // Enable blacklist mode
-    await callAsAdmin(adminContract, treasury, "updateBlacklistedStatus", [
+    await callAsAdmin(adminContract, treasury, "updateBlacklistStatus", [
       true,
     ]);
 
@@ -819,8 +820,8 @@ describe("LCAITreasury", function () {
     await fundTreasuryERC20(treasury, token, "50");
 
     // Both modes disabled by default
-    expect(await treasury.isWhitelisted()).to.equal(false);
-    expect(await treasury.isBlacklisted()).to.equal(false);
+    expect(await treasury.isWhitelistEnabled()).to.equal(false);
+    expect(await treasury.isBlacklistEnabled()).to.equal(false);
 
     // Should allow ETH transfer to any address
     await treasury

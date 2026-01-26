@@ -93,9 +93,10 @@ contract LCAIChatSubscription is ReentrancyGuard, Pausable, Ownable {
     event PlanPriceUpdated(
         uint256 indexed tier,
         uint256 monthlyPrice,
-        uint256 yearlyPrice,
-        bool isActive
+        uint256 yearlyPrice
     );
+
+    event PlanStatusToggled(uint256 indexed tier, bool isActive);
 
     event TreasuryUpdated(
         address indexed oldTreasury,
@@ -299,24 +300,56 @@ contract LCAIChatSubscription is ReentrancyGuard, Pausable, Ownable {
      * @param tier Tier to update
      * @param monthlyPrice New monthly price in payment token (smallest unit)
      * @param yearlyPrice New yearly price in payment token (smallest unit)
-     * @param isActive Whether tier should be active
      */
     function updatePlanPrice(
         uint256 tier,
         uint256 monthlyPrice,
-        uint256 yearlyPrice,
-        bool isActive
+        uint256 yearlyPrice
     ) external onlyAdmin {
         if (tier > MAX_TIER) revert InvalidTier();
         if (monthlyPrice == 0 || yearlyPrice == 0) revert InvalidPrice();
 
-        planPrices[tier] = PlanPrice({
-            monthlyPrice: monthlyPrice,
-            yearlyPrice: yearlyPrice,
-            isActive: isActive
-        });
+        planPrices[tier].monthlyPrice = monthlyPrice;
+        planPrices[tier].yearlyPrice = yearlyPrice;
 
-        emit PlanPriceUpdated(tier, monthlyPrice, yearlyPrice, isActive);
+        emit PlanPriceUpdated(tier, monthlyPrice, yearlyPrice);
+    }
+
+    /**
+     * @notice Toggle plan active status
+     * @param tier Tier to toggle
+     */
+    function togglePlanStatus(uint256 tier) external onlyAdmin {
+        if (tier > MAX_TIER) revert InvalidTier();
+
+        planPrices[tier].isActive = !planPrices[tier].isActive;
+
+        emit PlanStatusToggled(tier, planPrices[tier].isActive);
+    }
+
+    /**
+     * @notice Update prices for all plans together
+     * @param monthlyPrices Array of monthly prices for [tier1, tier2, tier3]
+     * @param yearlyPrices Array of yearly prices for [tier1, tier2, tier3]
+     * @dev Updates all tier prices in single transaction to prevent price misalignment
+     */
+    function updateAllPlanPrices(
+        uint256[MAX_TIER + 1] calldata monthlyPrices,
+        uint256[MAX_TIER + 1] calldata yearlyPrices
+    ) external onlyAdmin {
+        // Validate all prices are non-zero
+        for (uint256 i = 0; i <= MAX_TIER; i++) {
+            if (monthlyPrices[i] == 0 || yearlyPrices[i] == 0)
+                revert InvalidPrice();
+        }
+
+        // Update all plan prices
+        for (uint256 i = 0; i <= MAX_TIER; i++) {
+            planPrices[i].monthlyPrice = monthlyPrices[i];
+            planPrices[i].yearlyPrice = yearlyPrices[i];
+            // Keep existing isActive status
+            emit PlanPriceUpdated(i, monthlyPrices[i], yearlyPrices[i]);
+        }
     }
 
     /**
@@ -362,12 +395,7 @@ contract LCAIChatSubscription is ReentrancyGuard, Pausable, Ownable {
             planPrices[i].monthlyPrice = monthlyPrices[i];
             planPrices[i].yearlyPrice = yearlyPrices[i];
             // Keep existing isActive status
-            emit PlanPriceUpdated(
-                i,
-                monthlyPrices[i],
-                yearlyPrices[i],
-                planPrices[i].isActive
-            );
+            emit PlanPriceUpdated(i, monthlyPrices[i], yearlyPrices[i]);
         }
     }
 

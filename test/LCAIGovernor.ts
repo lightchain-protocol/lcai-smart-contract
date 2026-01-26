@@ -24,6 +24,7 @@ interface ProposalData {
 }
 
 const { network } = hre;
+// @ts-ignore
 let ethers: typeof hre.ethers;
 let networkHelpers: any;
 let deployer: any;

@@ -19,8 +19,8 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
     mapping(address => bool) public whitelistedAddresses;
     mapping(address => bool) public blacklistedAddresses;
 
-    bool public isWhitelisted = false;
-    bool public isBlacklisted = false;
+    bool public isWhitelistEnabled = false;
+    bool public isBlacklistEnabled = false;
 
     event WhitelistedAddressUpdated(
         address indexed _address,
@@ -74,9 +74,9 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
         address _recipient,
         uint256 _amount
     ) external nonReentrant whenNotPaused onlyOwner {
-        if (isWhitelisted && !whitelistedAddresses[_recipient])
+        if (isWhitelistEnabled && !whitelistedAddresses[_recipient])
             revert WhitelistedAddressNotAllowed();
-        if (isBlacklisted && blacklistedAddresses[_recipient])
+        if (isBlacklistEnabled && blacklistedAddresses[_recipient])
             revert BlacklistedAddressNotAllowed();
 
         if (address(this).balance < _amount) revert InsufficientBalance();
@@ -93,9 +93,9 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
         address _recipient,
         uint256 _amount
     ) external nonReentrant whenNotPaused onlyOwner {
-        if (isWhitelisted && !whitelistedAddresses[_recipient])
+        if (isWhitelistEnabled && !whitelistedAddresses[_recipient])
             revert WhitelistedAddressNotAllowed();
-        if (isBlacklisted && blacklistedAddresses[_recipient])
+        if (isBlacklistEnabled && blacklistedAddresses[_recipient])
             revert BlacklistedAddressNotAllowed();
 
         IERC20 token = IERC20(_token);
@@ -164,18 +164,18 @@ contract LCAITreasury is ReentrancyGuard, Pausable, Ownable {
         emit BlacklistedAddressUpdated(_address, _isBlacklisted);
     }
 
-    function updateWhitelistedStatus(bool _isWhitelisted) external onlyAdmin {
-        if (isWhitelisted == _isWhitelisted) return;
-        bool previousStatus = isWhitelisted;
-        isWhitelisted = _isWhitelisted;
-        emit WhitelistedStatusUpdated(previousStatus, _isWhitelisted);
+    function updateWhitelistStatus(bool status) external onlyAdmin {
+        if (isWhitelistEnabled == status) return;
+        bool previousStatus = isWhitelistEnabled;
+        isWhitelistEnabled = status;
+        emit WhitelistedStatusUpdated(previousStatus, status);
     }
 
-    function updateBlacklistedStatus(bool _isBlacklisted) external onlyAdmin {
-        if (isBlacklisted == _isBlacklisted) return;
-        bool previousStatus = isBlacklisted;
-        isBlacklisted = _isBlacklisted;
-        emit BlacklistedStatusUpdated(previousStatus, _isBlacklisted);
+    function updateBlacklistStatus(bool status) external onlyAdmin {
+        if (isBlacklistEnabled == status) return;
+        bool previousStatus = isBlacklistEnabled;
+        isBlacklistEnabled = status;
+        emit BlacklistedStatusUpdated(previousStatus, status);
     }
 
     function pause() external onlyAdmin {
