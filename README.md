@@ -1,362 +1,294 @@
-# LCAI DAO Governance System
+# LCAI Core + DAO Smart Contracts (PoI + AIVM)
 
-A comprehensive decentralized governance system built with OpenZeppelin Governor contracts, featuring multiple voting strategies and timelock-controlled execution. This project demonstrates advanced DAO governance patterns with flexible voting power mechanisms.
+This package contains the on-chain contracts for the Lightchain AI testnet v2 stack. It covers **LCAI core protocol anchors** (AIVM inference, PoI attestations, model/benchmark registries, node onboarding & staking, dispute bonds) and **DAO governance/economics** (governor, timelock, treasury, chat payments & subscriptions).
 
-## 🏗️ Architecture Overview
+Primary architecture references:
+- `PoI_AIVM_Architecture_Document.pdf`
+- `AIVM/AIVM Technical Lifecycle Flow.md`
+- `PoI-Consensus/README.md`
+- `PoI-Consensus/consensus-go/docs/POI_TASK_LIFECYCLE.md`
+- `PoI-Consensus/consensus-go/docs/POI_SIGNING.md`
+- `lcai-smart-contract/docs/AIVM-ONCHAIN-INTEGRATION.md`
 
-### Core Contracts
+## Scope and boundaries
 
-- **`LCAIGovernor.sol`** - Main governance contract with proposal creation, voting, and execution
-- **`LCAITimeLock.sol`** - Timelock controller for delayed execution of approved proposals
-- **`WLCAI.sol`** - ETH-backed governance token with 1:1 ETH deposits and withdrawals
-- **`PresaleVotingPower.sol`** - Admin-controlled voting power assignment system
-- **`LCAIChatUtility.sol`** - Chat utility contract with session management and reward distribution
-- **`ChallengeBondEscrow.sol`** - Minimal escrow for fraud-challenge bonds (post/refund/slash)
-- **`Counter.sol`** - Example target contract for testing governance actions
+**On-chain (this repo)**
+- Inference request anchoring + PoI attestation quorum checks.
+- Model/benchmark registries, access policy, ticket receipts.
+- Node onboarding with attestation metadata, staking, and slashing hooks.
+- Dispute bonds + challenge resolution hooks.
+- DAO governance (Governor + Timelock) and treasuries.
+- Chat utility and subscription economics.
 
-### Governance Features
+**Off-chain / consensus layer (other repos)**
+- PoI consensus engine (commit -> reveal -> verify -> attest -> aggregate -> finalize).
+- Committee selection, VRF spot-checks, and data availability publishing.
+- TEE quote verification at inference time and ZK spot-check execution.
+- Consensus API (task submission, status lifecycle) and Geth-based execution layer.
 
-- ✅ **Proposal Creation & Voting** - Create proposals and vote with multiple support options
-- ✅ **Timelock Protection** - 2-day delay between approval and execution for security
-- ✅ **Quorum Requirements** - 4% of total voting power required for proposal validity
-- ✅ **Multiple Voting Strategies** - Choose between token-based or admin-controlled voting
-- ✅ **Delegation Support** - Token holders can delegate voting power (token strategy only)
-- ✅ **Batch Operations** - Efficient multi-account voting power management
-- ✅ **Chat Utility Integration** - DAO controls chat fees, rewards, and session management
-- ✅ **Automated Deployment** - Complete system deployment with Makefile commands
+## Protocol context (from PoI/AIVM docs)
 
-## 💬 Chat Utility Integration
+- PoI = objective commitment (hash of inference + metadata) + TEE attestation binding that commitment to an approved enclave.
+- Layers: User (UI/SDK/API gateway), Compute (TEE workers), Execution (EVM), Consensus & Verification (PoI + PoS, committee signatures, bonded challengers, dispute window).
+- Node roles: Validators (PoI consensus + attestation verification), Workers (TEE inference + attestation generation), Challengers (permissionless bonded disputes).
+- Lifecycle phases: Registration & node readiness -> Task initiation & committee selection -> Worker execution & objective commitment -> Validator verification & provisional finality -> Payload encryption & data availability -> Dispute window & slashing -> Settlement & hard finality.
 
-The system includes a comprehensive Chat Utility contract (`LCAIChatUtility.sol`) that is fully integrated with the DAO governance system:
+Note: The documents define target parameters (committee size, dispute window length, spot-check probability). The contracts here implement the on-chain anchors; committee selection, DA publishing, and spot-check orchestration live in the consensus/off-chain stack.
 
-### Chat Utility Features
+## Design targets (from PoI/AIVM docs, largely off-chain)
 
-- **Session Management** - Store and retrieve chat sessions with IPFS integration
-- **Reward Distribution** - Automated reward system for chat interactions
-- **Fee Configuration** - Configurable chat fees controlled by DAO governance
-- **Leaderboard System** - Track user statistics and rankings
-- **DAO Control** - All critical functions controlled by TimelockController
+These items are described in the architecture docs and are implemented in the consensus stack and services, not directly in Solidity:
 
-### Governance Control
+- **Committee selection**: VRF-based committee selection (docs often cite N=6; consensus-go defaults may differ).
+- **Provisional vs hard finality**: Provisional finality via K-of-N signatures; hard finality after the dispute window.
+- **Encryption flow**: Prompt encrypted with a session key (Ks); response encrypted once with a response key (Kr). Validators only receive wrapped Kr when selected for spot-check/dispute.
+- **Data availability**: Prompt/response artifacts published to IPFS; pinning and retrievability checks; optional DA layers (e.g., Celestia).
+- **Spot checks**: VRF-triggered spot checks (rho ~ 1%) with optional ZK proofs.
+- **Economics split**: Architecture docs cite 60/20/20 or 50/30/20 splits; on-chain settlement is currently simpler (see gaps section).
 
-The DAO can vote on proposals to:
+## Repository layout (quick guide)
 
-- **Update Chat Fees** - Change the cost per message
-- **Modify Reward Rates** - Adjust reward distribution parameters
-- **Authorize Reward Issuers** - Control who can issue rewards
-- **Pause/Unpause System** - Emergency controls for the chat utility
-- **Treasury Management** - Withdraw funds from the chat utility contract
+- `contracts/` - Solidity contracts
+- `scripts/` - deployment + utilities
+- `docs/` - on-chain integration notes
+- `abi/` - generated ABIs for off-chain bindings
+- `data/deployments/` - deployment history
+- `test/` - Hardhat tests
 
-### Deployment Integration
+## Architecture -> contracts map
 
-When you run `make deploy-all`, the system:
+| Architecture component | Contracts in this repo | Notes |
+| --- | --- | --- |
+| ModelRegistry | `AIVMModelRegistry.sol` | Base models, variants, validation, challenges, access policy + ticket receipts |
+| NodeRegistry | `NodeOnboarding.sol`, `NodeStaking.sol`, `LCAIValidatorRegistry.sol` | `NodeOnboarding` is the full registry; `LCAIValidatorRegistry` is the simple PoI attestation registry used by `AIVMInferenceV2` |
+| AIInference | `AIVMInferenceV2.sol` | Request/commit/reveal + PoI attestations + fee settlement |
+| ChatUtility | `LCAIChatUtility.sol` | Session storage, rewards, leaderboard, admin controls |
+| PaymentSettlement | `AIVMInferenceV2.sol`, `LCAITreasury.sol` | Fee split handled on finalize; no standalone settlement contract yet |
+| DisputeArbiter | `ChallengeBondEscrow.sol`, `AIVMInferenceV2.sol`, `AIVMModelRegistry.sol` | Bonded disputes and resolution hooks |
+| SpotCheckVRF | (consensus/off-chain) | Not implemented as a standalone contract in this repo |
 
-1. **Deploys DAO Contracts** - Governor, Timelock, Voting Power
-2. **Deploys Chat Utility** - Session and reward management
-3. **Transfers Ownership** - Chat Utility ownership → TimelockController
-4. **Configures Roles** - Sets up proper governance permissions
-5. **Funds Contracts** - Provides initial funding for operations
+## Core contracts by domain
 
-## 🎯 Voting Strategies
+### LCAI core protocol (AIVM + PoI)
 
-### 1. Token-Based Voting (`Token.sol`)
+- `AIVMInferenceV2.sol`
+  - On-chain anchor for inference requests without leaking prompt bytes (stores `promptHash` + `promptId`).
+  - Worker flow: `requestInferenceV2` -> `commitInference` -> `revealInference`.
+  - PoI bridge: validators submit EIP-712 attestations (`taskId`, `resultHash`, `transcriptHash`, `slot`).
+  - Quorum enforced via `LCAIValidatorRegistry`; matching `resultHash` finalizes and releases fees.
+  - Anti-spam + safety: min request fee, max pending per requester, worker bond, timeouts, challenge bond + resolver.
 
-**Decentralized approach using ERC20 tokens**
+- `LCAIValidatorRegistry.sol`
+  - Simple BLS-key registry with active flags used by `AIVMInferenceV2` for PoI quorum checks.
 
-```solidity
-// Users acquire tokens and delegate to activate voting power
-await token.write.transfer([voterAddress, parseEther("1000")]);
-await token.write.delegate([voterAddress], { account: voter });
-```
+- `AIVMModelRegistry.sol`
+  - Registers base models and model variants with IPFS CIDs and validation policy.
+  - Aggregator submits aggregated results; contract manages approval, challenge windows, finalization.
+  - Access policies per variant (ticket requirement, min stake), with ticket receipts stored on-chain.
+  - Challenge flow with staking + governance slashing hooks.
+  - **Staking uses native L1 value (msg.value)**, not an ERC20 token.
 
-**Characteristics:**
+- `AIVMTicketManager.sol`
+  - Issues and revokes short-lived access tickets used by validators/trainers.
 
-- Market-driven voting power distribution
-- Requires token acquisition and delegation
-- Supports delegation chains
-- Standard ERC20 compatibility
+- `BenchmarkRegistry.sol`
+  - Curated registry of benchmark datasets (domain/task mapping, metadata, wrapped DEK, versioning).
 
-### 2. ETH-Backed Voting (`WLCAI.sol`)
+- `NodeOnboarding.sol`
+  - Registers validators/workers with BLS keys or node keys + TEE attestation quotes.
+  - Tracks MR_ENCLAVE, TCB status, model readiness, heartbeats, exit/unbonding.
+  - Optional allowlist for approved enclaves and TCB thresholds.
 
-**ETH-collateralized governance tokens with 1:1 backing**
+- `NodeStaking.sol`
+  - Holds stake balances; integrates with NodeOnboarding to enforce safe withdrawals.
+  - Supports slashing by authorized roles (consensus/dispute components).
+  - **Staking uses native L1 value (msg.value)**, not an ERC20 token.
 
-```solidity
-// Users deposit ETH to mint governance tokens
-await user.sendTransaction({
-  to: wLCAI.address,
-  value: parseEther("10"), // Deposit 10 ETH
-});
-await wLCAI.write.delegate([voterAddress], { account: user });
-```
+- `ChallengeBondEscrow.sol`
+  - Minimal bond escrow for challenge/slashing flows.
+  - Used by dispute resolvers to refund or slash bonds.
 
-**Characteristics:**
+### DAO governance + economics
 
-- ETH-backed governance tokens (1:1 ratio)
-- Users must lock ETH to participate in governance
-- Full delegation and snapshot support
-- Withdraw ETH anytime by burning tokens
-- No token economics - direct ETH commitment
+- `LCAIGovernor.sol`, `LCAITimeLock.sol`
+  - OpenZeppelin-based Governor + Timelock for protocol upgrades and parameter changes.
 
-### 3. Manual Votes Strategy (`PresaleVotingPower.sol`)
+- `PresaleVotingPower.sol`, `WLCAI.sol`
+  - Voting strategies: manual voting power assignment or ETH-backed governance token.
 
-**Admin-controlled voting power assignment**
+- `LCAITreasury.sol`, `NativeLCAITreasury.sol`
+  - Treasury contracts for protocol funds with whitelist/blacklist controls.
 
-```solidity
-// Admin directly sets voting power for any address
-await votesStrategy.write.setVotingPower([voterAddress, parseEther("5000")]);
-```
+- `LCAIChatUtility.sol`
+  - Stores chat session metadata, manages rewards, and exposes leaderboard stats.
 
-**Characteristics:**
+- `LCAIChatSubscription.sol`, `NativeLCAIChatSubscription.sol`
+  - Tiered subscription payments (ERC20 or native) routed to treasury.
 
-- Full administrative control
-- No token economics required
-- Delegation disabled for security
-- Flexible voting power distribution
+### Tokens & utilities
 
-## 🚀 Getting Started
+- `LightChainAIToken.sol`, `Token.sol`, `BaseToken.sol`, `WrappedToken.sol`, `WLCAI.sol`
+- `LCAIAirdrop.sol`, `MultiSender.sol`, `Counter.sol`, mocks and test helpers
+
+## AIVM lifecycle mapping (contract touchpoints)
+
+Phase 1: Registration & node readiness
+- Validators/workers stake via `NodeStaking` and register with `NodeOnboarding` using TEE attestation quotes.
+- Validator keys can also be registered in `LCAIValidatorRegistry` for PoI attestation quorum checks.
+
+Phase 2: Task initiation & committee selection
+- Off-chain gateway/orchestrator selects committee (PoI consensus) and workers.
+- Users pay/authorize access via `LCAIChatSubscription` / `LCAIChatUtility` (session storage + rewards).
+- Request anchored on-chain via `AIVMInferenceV2.requestInferenceV2` with `promptHash`, `promptId`, `modelDigest`, `detConfigHash`.
+
+Phase 3: Worker execution & objective commitment
+- Worker locks bond and commits `commitInference`, then reveals `revealInference`.
+- Response payload can be stored off-chain; on-chain stores the hash and an optional response string.
+
+Phase 4: Validator verification & provisional finality
+- Validators attest off-chain; attestations are submitted on-chain via `submitPoIAttestation`.
+- `AIVMInferenceV2` finalizes once quorum is met and `resultHash` matches.
+
+Phase 5: Payload encryption & data availability
+- Prompt/response artifacts are published to IPFS/DA layers (off-chain); hashes/CIDs are anchored on-chain as needed.
+
+Phase 6: Dispute window & slashing
+- `AIVMInferenceV2.challenge` + `resolveChallenge` handle bonded disputes.
+- `ChallengeBondEscrow` and `NodeStaking.slash` enforce economic penalties.
+- `AIVMModelRegistry.challengeVariant` + `slashValidators` cover model validation disputes.
+
+Phase 7: Settlement & rewards
+- `AIVMInferenceV2` releases fees: worker payout + protocol fee to treasury.
+- Chat rewards and subscription revenue flow into the treasury contracts.
+
+## PoI consensus integration (consensus-go)
+
+- The PoI consensus engine (see `PoI-Consensus/README.md`) coordinates commit -> reveal -> verify -> attest -> aggregate -> assemble -> fork-choice with validator networking and BLS signature aggregation.
+- **PoI signing uses validator BLS keys as the single source of truth** (see `PoI-Consensus/consensus-go/docs/POI_SIGNING.md`).
+- `consensus-go` consumes ABIs from `lcai-smart-contract/abi/` and deployment addresses from `lcai-smart-contract/data/deployments/` (see `PoI-Consensus/consensus-go/docs/CONTRACT_INTEGRATION.md`).
+
+## Governance defaults (current contract settings)
+
+`LCAIGovernor.sol` sets these defaults in its constructor:
+
+| Parameter | Value |
+| --- | --- |
+| Voting delay | 7200 blocks |
+| Voting period | 100800 blocks |
+| Proposal threshold | 140,000 tokens |
+| Quorum | 3% (governance can update to 3-15%) |
+
+Timelock delay is set at deployment; see the deployment scripts for the value used per network.
+
+## Roadmap checklist (docs vs current contracts)
+
+The architecture docs describe the **target system**. The contracts here cover the on-chain anchors, but several items are still off-chain or not yet implemented in Solidity. Track them here with owners/PRs:
+
+| Status | Roadmap item | Owner | PR/Issue |
+| --- | --- | --- | --- |
+| ☐ | **BLS attestation verification on-chain** (align with PoI aggregation; replace or extend EIP-712 ECDSA in `AIVMInferenceV2`) | TBD | TBD |
+| ☐ | **TEE quote binding on-chain** (store/verify quote hash per task) | TBD | TBD |
+| ☐ | **Batch merkle roots + DA proof verification** (InferenceRegistry-style contract) | TBD | TBD |
+| ☐ | **Spot-check VRF + ZK proof hooks** (on-chain trigger/verification) | TBD | TBD |
+| ☐ | **Validator reward settlement on-chain** (move from off-chain accounting to contract split) | TBD | TBD |
+| ☐ | **Worker registry TEE encryption pubkey** (add `tee_encrypt_pubkey` field/flow) | TBD | TBD |
+| ☐ | **Chat credits/session flow** (align contract interfaces with `deposit/createSession/deductCredits/withdraw` UX) | TBD | TBD |
+| ☐ | **ModelRegistry MR_ENCLAVE mapping** (bind model IDs to MR_ENCLAVE at registry level) | TBD | TBD |
+| ☐ | **requestInferenceV3 parity** (align API naming/flow with docs) | TBD | TBD |
+| ☐ | **Consensus defaults sync** (document actual `committee_size`/`quorum_threshold` values used) | TBD | TBD |
+| ☐ | **Off-chain payload storage only** (remove or gate on-chain response string) | TBD | TBD |
+| ☐ | **Token staking alignment** (move staking from native value to LCAI token or document L1-native explicitly) | TBD | TBD |
+
+These gaps are intentionally documented so the on-chain implementation stays honest and aligned with the consensus stack roadmap.
+
+## Implementation status (per contract)
+
+### Core protocol contracts
+
+| Contract | Status | Notes |
+| --- | --- | --- |
+| `AIVMInferenceV2.sol` | Implemented | On-chain inference anchor + PoI attestation quorum |
+| `AIVMModelRegistry.sol` | Implemented | Model/variant registry + validation + challenges |
+| `AIVMTicketManager.sol` | Implemented | Short-lived access tickets |
+| `BenchmarkRegistry.sol` | Implemented | Benchmark catalog + assignments |
+| `NodeOnboarding.sol` | Implemented | Node registry + attestation metadata |
+| `NodeStaking.sol` | Implemented | Native-value staking + slashing hooks |
+| `LCAIValidatorRegistry.sol` | Implemented | Simple validator set for PoI quorum |
+| `ChallengeBondEscrow.sol` | Implemented | Bond escrow for disputes |
+
+### DAO governance + economics
+
+| Contract | Status | Notes |
+| --- | --- | --- |
+| `LCAIGovernor.sol` | Implemented | Governor with timelock control |
+| `LCAITimeLock.sol` | Implemented | Timelock controller |
+| `PresaleVotingPower.sol` | Implemented | Manual voting power strategy |
+| `WLCAI.sol` | Implemented | ETH-backed governance token |
+| `LCAITreasury.sol` | Implemented | Treasury with whitelist/blacklist |
+| `NativeLCAITreasury.sol` | Implemented | Native treasury variant |
+| `LCAIChatUtility.sol` | Implemented | Sessions + rewards |
+| `LCAIChatSubscription.sol` | Implemented | ERC20 subscription payments |
+| `NativeLCAIChatSubscription.sol` | Implemented | Native subscription payments |
+
+### Tokens, utilities, demos, tests
+
+| Contract | Status | Notes |
+| --- | --- | --- |
+| `LightChainAIToken.sol` | Implemented | Token implementation (not wired into core flows) |
+| `Token.sol` | Implemented | Utility/test token |
+| `BaseToken.sol` | Implemented | Base token helper |
+| `WrappedToken.sol` | Implemented | Wrapped token helper |
+| `LCAIAirdrop.sol` | Implemented | Airdrop utility |
+| `LCAIPresale.sol` | Implemented | Presale contract |
+| `DummyLCAIPresale.sol` | Test/Demo | Dummy presale for testing |
+| `MultiSender.sol` | Utility | Batch transfers |
+| `Counter.sol` | Example | Example contract |
+| `MockAdmin.sol` | Test/Helper | Deployment helper for admin role |
+| `EthRejecter.sol` | Test/Helper | ETH-rejecting contract for tests |
+
+## Getting started
 
 ### Prerequisites
 
-- Node.js 18+
-- npm or yarn
+- Node.js 22+
+- npm or pnpm
 - Git
 
-### Installation
+### Install and compile
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd lcai-dao
-
-# Install dependencies
+cd lcai-smart-contract
 npm install
-
-# Compile contracts
 npx hardhat compile
 ```
 
-### Environment Setup
+### Environment setup
 
-**Required:** Create a `.env` file in the project root to securely store your private keys and configuration:
+Create a `.env` file in `lcai-smart-contract/`:
 
 ```bash
-# Copy the example environment file
 cp .env.example .env
-
-# Or create manually
-touch .env
 ```
 
-**Edit your `.env` file** and replace the placeholder values:
+Edit `.env` with your private key and RPC URLs. See `.env.example` for the full list of variables.
+
+### Running tests
 
 ```bash
-# Required: Your wallet private key for deployments
-OWNER_WALLET_PRIVATE_KEY=0xYOUR_PRIVATE_KEY_HERE  # Replace with your actual private key
-
-# Optional: RPC URLs (uses defaults if not set)
-SEPOLIA_RPC_URL=https://rpc.sepolia.org
-LCAI_TESTNET_RPC_URL=https://light-testnet-rpc.lightchain.ai
-
-# Optional: Sepolia deployment (uses hardhat-keystore if not set)
-SEPOLIA_PRIVATE_KEY=0xYOUR_SEPOLIA_PRIVATE_KEY_HERE  # Replace if deploying to Sepolia
-```
-
-**💡 Tip:** The `.env.example` file contains detailed comments and security best practices.
-
-**Security Notes:**
-
-- ⚠️ **Never commit your `.env` file** - It's already in `.gitignore`
-- 🔐 **Keep your private keys secure** - Never share or expose them
-- 🔑 **Use separate wallets** for development and production
-- 💡 **Alternative:** Use `hardhat-keystore` for encrypted key storage
-
-**Getting Your Private Key:**
-
-1. **From MetaMask:** Settings → Security & Privacy → Reveal Private Key
-2. **From other wallets:** Check your wallet's export/backup options
-3. **For testing:** Use one of Hardhat's test accounts
-
-**Verify Setup:**
-
-```bash
-# Check if your environment is configured correctly
-npx hardhat console --network lcaiTestnet
-
-# In console, check your address
-> const [signer] = await ethers.getSigners();
-> await signer.getAddress();
-```
-
-### Running Tests
-
-Execute the comprehensive test suite covering both voting strategies:
-
-```bash
-# Run all governance tests
-npx hardhat test ./test/LCAIGovernor.ts
-
-# Run WLCAI tests
-npx hardhat test ./test/WLCAI.ts
-
-# Run all tests in the project
 npx hardhat test
 ```
 
-**Test Coverage:**
+## Deployment
 
-- ✅ Complete governance flow (create → vote → queue → execute)
-- ✅ Quorum enforcement for all voting strategies
-- ✅ ETH deposit/withdrawal functionality with 1:1 backing
-- ✅ Timelock delay protection
-- ✅ Dynamic voting power updates
-- ✅ Delegation controls and restrictions
-- ✅ Reentrancy protection and security measures
-
-## 📦 Deployment
-
-### Quick Start with Makefile
-
-The project includes a comprehensive Makefile for easy deployment and management:
+### Makefile quick start
 
 ```bash
-# Show all available commands
 make help
-
-# Setup development environment
 make dev-setup
-
-# Deploy all contracts (DAO + Chat Utility)
 make deploy-all
-
-# Deploy only DAO contracts
-make deploy-dao
-
-# Deploy only Chat Utility
-make deploy-chat-utility
-
-# Deploy to specific network
-make deploy-all NETWORK=sepolia
-make deploy-dao NETWORK=lcaiTestnet
 ```
 
-### Available Commands
-
-| Command | Description |
-|---------|-------------|
-| `make install` | Install dependencies |
-| `make compile` | Compile contracts |
-| `make deploy-all` | Deploy complete system (DAO + Chat Utility) |
-| `make deploy-dao` | Deploy DAO contracts only |
-| `make deploy-chat-utility` | Deploy Chat Utility only |
-| `make clean` | Clean build artifacts |
-| `make test` | Run test suite |
-| `make verify` | Verify deployed contracts |
-| `make status` | Show deployment status |
-
-### Local Development
-
-Deploy to local Hardhat network for testing:
-
-```bash
-# Start local node
-npx hardhat node
-
-# Deploy contracts (in another terminal)
-make deploy-all NETWORK=hardhat
-
-## 🧾 Challenge Bond Escrow
-
-`ChallengeBondEscrow.sol` provides a minimal bond escrow to economically secure the fraud-proof system.
-
-- Owner: LCAITimeLock (constructor)
-- Roles: `RESOLVER_ROLE` (granted to a DAO-controlled resolver that can refund/slash)
-- Storage: per-challenge bond with challenger, amount, postedAt, expiresAt, refunded/slashed flags
-- Config: `minBond`, `challengeWindowSecs`, `treasury`
-
-### Key Methods & Roles
-
-- Roles
-  - Owner: Timelock (LCAITimeLock) — can set resolver, treasury, params, pause/unpause
-  - `RESOLVER_ROLE`: can call refundBond and slashBond (grant to DAO-controlled executor)
-
-- Functions
-  - `postBond(bytes32 challengeId)` payable
-    - Requires `msg.value >= minBond` and that the challenge has no prior bond
-    - Records timestamps and emits `BondPosted`
-  - `refundBond(bytes32 challengeId, address to)` onlyResolver
-    - Refunds the posted amount and emits `BondRefunded`
-  - `slashBond(bytes32 challengeId, address beneficiary, uint256 amount)` onlyResolver
-    - Supports partial slashing: transfers `amount` to the beneficiary (default: `treasury`) and emits `BondSlashed`
-    - Any remaining locked amount can later be refunded via `refundBond`
-  - Admin (only owner): `setMinBond`, `setChallengeWindow`, `setTreasury`, `setResolver(addr, enabled)`, `pause`, `unpause`
-
-### Deploy Escrow
-
-```
-npx hardhat run Smart Contract/scripts/deploy-challenge-bond-escrow.ts --network <network>
-# Optional ENV:
-#   TIMLOCK=0x... RESOLVER=0x... TREASURY=0x...
-#   MIN_BOND_WEI=100000000000000000000  CHALLENGE_WINDOW_SECS=96
-```
-
-The script writes to `Smart Contract/data/deployments/<network>/ChallengeBondEscrow.json` and exports `BOND_ESCROW_ADDRESS` in a local `.env` file in the same folder.
-
-### Events
-
-- `BondPosted(bytes32 challengeId, address challenger, uint256 amount, uint256 postedAt, uint256 expiresAt)`
-- `BondRefunded(bytes32 challengeId, address to, uint256 amount)`
-- `BondSlashed(bytes32 challengeId, address beneficiary, uint256 amount)`
-
-### Challenge ID Semantics
-
-The off-chain Dispute Manager derives the escrow `challengeId` deterministically from the dispute identifier to enable cross-system correlation:
-
-- Derivation: `challengeId = sha256(disputeID)` (32-byte digest)
-- Usage: the derived `challengeId` is passed to `postBond`, `refundBond`, and `slashBond` so explorers and tools can link on-chain events with off-chain disputes.
-- Mapping: when a `BondPosted`/`BondRefunded`/`BondSlashed` event is emitted, indexers can:
-  1) read `challengeId` from the event,
-  2) query the dispute REST/gRPC API for a dispute whose `sha256(id)` equals that `challengeId`.
-
-Note: the `disputeID` is stable and created from core dispute fields (challenger, task, submission slot, and evidence hash). The `sha256` derivation ensures consistent 1:1 mapping without storing plaintext IDs on-chain.
-
-### Tests
-
-```
-npx hardhat test Smart Contract/test/ChallengeBondEscrow.ts
-```
-
-Coverage includes happy paths for post/refund/slash, pause semantics, role gating, and double-spend protection.
-```
-
-### Testnet Deployment
-
-#### LCAI Testnet Deployment
-
-1. **Ensure `.env` is configured** with `OWNER_WALLET_PRIVATE_KEY` (see Environment Setup above)
-
-2. **Deploy to LCAI Testnet:**
-
-```bash
-# Deploy complete system (recommended)
-make deploy-all NETWORK=lcaiTestnet
-
-# Or deploy components separately
-make deploy-dao NETWORK=lcaiTestnet
-make deploy-chat-utility NETWORK=lcaiTestnet
-```
-
-#### Lightchain Testnet v2 Deployment
-
-1. **Update `.env`** with the new RPC and explorer configuration:
-
-```bash
-LCAI_TESTNET_V2_RPC_URL=http://localhost:8545        # or your remote RPC
-LCAI_TESTNET_V2_CHAIN_ID=504                         # override if genesis uses a different ID
-LCAI_BLOCKSCOUT_BROWSER_URL=http://localhost:4000    # Blockscout base URL
-LCAI_BLOCKSCOUT_API_URL=http://localhost:4000/api    # Blockscout API endpoint
-```
-
-2. **Run the repeatable deployment:**
+### Lightchain testnet v2 deployment
 
 ```bash
 pnpm install
@@ -367,188 +299,35 @@ pnpm deploy:testnet:treasury
 pnpm deploy:testnet:chat-subscription
 ```
 
-The scripts automatically:
+Deployment scripts write history to `data/deployments/`. The treasury/chat-subscription scripts also sync addresses into `lcai-testnet-v2/genesis/genesis_v2.json`, `lcai-testnet-v2/network/rpc/config/consensus.yaml`, and the local `.env` (see `scripts/deployment/utils/updateDeploymentArtifacts.ts`).
 
-- Save deployment history in `data/deployments/`
-- Sync addresses into `lcai-testnet-v2/genesis/genesis_v2.json`
-- Update execution addresses inside `lcai-testnet-v2/network/rpc/config/consensus.yaml`
-- Refresh address exports in your local `.env`
-
-3. **Verify on Blockscout (after the explorer is reachable):**
+### Verify on Blockscout
 
 ```bash
 pnpm exec hardhat verify --network lcai_testnet_v2 <CONTRACT_ADDRESS> <CONSTRUCTOR_ARGS>
 ```
 
-> 💡 The verification flow uses the configured `LCAI_BLOCKSCOUT_*` environment variables, so you can point at a local Blockscout instance or a hosted explorer.
+## Challenge Bond Escrow (dispute bonds)
 
-#### Sepolia Testnet Deployment
+`ChallengeBondEscrow.sol` provides the minimal escrow used for challenge bonds.
 
-1. **Add Sepolia credentials to `.env`:**
+- Owner: `LCAITimeLock`
+- Roles: `RESOLVER_ROLE` can refund/slash bonds
+- Config: `minBond`, `challengeWindowSecs`, `treasury`
 
-```bash
-SEPOLIA_PRIVATE_KEY=0x...
-SEPOLIA_RPC_URL=https://rpc.sepolia.org
-```
+Key methods:
+- `postBond(bytes32 challengeId)` payable
+- `refundBond(bytes32 challengeId, address to)` onlyResolver
+- `slashBond(bytes32 challengeId, address beneficiary, uint256 amount)` onlyResolver
 
-Or use hardhat-keystore (recommended):
+The dispute manager derives `challengeId = sha256(disputeID)` so off-chain disputes map 1:1 to on-chain events.
 
-```bash
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
-```
+## Docs
 
-2. **Deploy to Sepolia:**
-
-```bash
-make deploy-all NETWORK=sepolia
-```
-
-### Production Deployment
-
-For mainnet deployment, ensure:
-
-- [ ] Comprehensive security audit completed
-- [ ] Multi-sig wallet setup for admin functions
-- [ ] Voting strategy chosen and parameters set
-- [ ] Emergency procedures documented
-
-## 🎮 Usage Examples
-
-### ETH-Backed Governance Flow
-
-```typescript
-// 1. Deploy governance contracts with WLCAI strategy
-const wLCAI = await viem.deployContract("WLCAI");
-const timelock = await viem.deployContract("LCAITimeLock", [
-  172800n, // 2 days delay
-  [], // proposers (set to governor)
-  [], // executors (set to governor)
-  adminAddress,
-]);
-const governor = await viem.deployContract("LCAIGovernor", [
-  wLCAI.address,
-  timelock.address,
-]);
-
-// 2. Users deposit ETH to get voting power
-await user.sendTransaction({
-  to: wLCAI.address,
-  value: parseEther("10"), // deposit 10 ETH
-});
-await wLCAI.write.delegate([voterAddress], { account: user });
-
-// 3. Create proposal
-const proposalTx = await governor.write.propose(
-  [
-    [targetContract.address], // targets
-    [0n], // values
-    [encodedCalldata], // calldatas
-    "Proposal description",
-  ],
-  { account: proposer }
-);
-
-// 4. Vote on proposal (after voting delay)
-await governor.write.castVote([proposalId, 1], { account: voter }); // 1 = For
-
-// 5. Queue proposal (after voting period ends)
-await governor.write.queue([targets, values, calldatas, descriptionHash]);
-
-// 6. Execute proposal (after timelock delay)
-await governor.write.execute([targets, values, calldatas, descriptionHash]);
-
-// 7. Users can withdraw their ETH anytime (burns tokens)
-await wLCAI.write.withdraw([parseEther("5")], { account: user }); // Withdraw 5 LCAI
-```
-
-### Manual Voting Strategy Flow
-
-```typescript
-// 1. Deploy with manual voting strategy
-const votesStrategy = await viem.deployContract("PresaleVotingPower");
-const governor = await viem.deployContract("LCAIGovernor", [
-  votesStrategy.address,
-  timelock.address,
-]);
-
-// 2. Set voting power (admin only)
-await votesStrategy.write.setVotingPowerBatch([
-  [voter1Address, voter2Address],
-  [parseEther("5000"), parseEther("3000")],
-]);
-
-// 3. Governance flow continues same as token-based
-// (create → vote → queue → execute)
-```
-
-## 🔧 Configuration
-
-### Governance Parameters
-
-| Parameter          | Value                   | Description                        |
-| ------------------ | ----------------------- | ---------------------------------- |
-| Voting Delay       | 7200 blocks (~1 day)    | Time before voting starts          |
-| Voting Period      | 50400 blocks (~1 week)  | Duration of voting phase           |
-| Proposal Threshold | 0 tokens                | Minimum tokens to create proposal  |
-| Quorum             | 4%                      | Minimum participation for validity |
-| Timelock Delay     | 172800 seconds (2 days) | Execution delay after approval     |
-
-### Network Configuration
-
-The project supports multiple networks:
-
-- **Local Hardhat** - Development and testing
-- **Sepolia** - Testnet deployment
-- **Mainnet** - Production deployment (configure separately)
-
-## 🛡️ Security Considerations
-
-### Timelock Protection
-
-- 2-day delay between proposal approval and execution
-- Allows community to review and potentially cancel malicious proposals
-- Admin can cancel proposals during delay period
-
-### Access Controls
-
-- Governor contract controls timelock proposer/executor roles
-- PresaleVotingPower owner can update voting power
-- Multi-sig recommended for production admin functions
-
-## 🤝 What You Can Do With This System
-
-### DAO Operations
-
-- **Treasury Management** - Control DAO funds and investments
-- **Protocol Upgrades** - Vote on smart contract upgrades
-- **Parameter Changes** - Adjust system parameters and fees
-- **Grant Allocation** - Distribute funding to contributors
-- **Partnership Decisions** - Approve strategic partnerships
-
-### Governance Experiments
-
-- **Hybrid Voting** - Combine token and manual strategies
-- **Delegation Strategies** - Test different delegation patterns
-- **Quorum Optimization** - Find optimal participation thresholds
-- **Proposal Templates** - Create standardized proposal formats
-
-### Integration Possibilities
-
-- **Multi-DAO Coordination** - Connect with other governance systems
-- **Cross-Chain Governance** - Extend to multiple blockchains
-- **Off-Chain Integration** - Connect with traditional voting systems
-- **Analytics Dashboard** - Build governance metrics and insights
-
-## 📚 Technical Details
-
-Built with:
-
-- **Hardhat 3 Beta** - Development environment with native Node.js testing
-- **OpenZeppelin Contracts** - Battle-tested governance primitives
-- **Viem** - Type-safe Ethereum interactions
-- **TypeScript** - Full type safety and developer experience
-- **Solidity 0.8.28** - Latest Solidity features with optimization
-
----
-
-_Built for the LCAI DAO community to enable decentralized governance and decision-making._
+- `lcai-smart-contract/docs/AIVM-ONCHAIN-INTEGRATION.md`
+- `lcai-smart-contract/docs/CONTRACT_DEPLOYMENT.md`
+- `PoI_AIVM_Architecture_Document.pdf`
+- `AIVM/AIVM Technical Lifecycle Flow.md`
+- `PoI-Consensus/README.md`
+- `PoI-Consensus/consensus-go/docs/POI_TASK_LIFECYCLE.md`
+- `PoI-Consensus/consensus-go/docs/CONTRACT_INTEGRATION.md`
