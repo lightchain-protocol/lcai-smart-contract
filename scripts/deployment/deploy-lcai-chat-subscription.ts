@@ -36,8 +36,7 @@ async function main() {
   const paymentTokenAddress = process.env.PAYMENT_TOKEN_ADDRESS?.trim();
   const treasuryAddress = process.env.TREASURY_ADDRESS?.trim();
   const timelockAddress = process.env.TIMELOCK_ADDRESS?.trim();
-  const adminAddress =
-    process.env.ADMIN_ADDRESS?.trim() || deployer.address;
+  const adminAddress = process.env.ADMIN_ADDRESS?.trim() || deployer.address;
 
   if (!paymentTokenAddress) {
     console.error(
@@ -144,7 +143,7 @@ async function main() {
     const owner = await subscription.owner();
     const admin = await subscription.admin();
     const isAdmin = await subscription.isAdmin(adminAddress);
-    const totalSubscribers = await subscription.getTotalSubscribers();
+    const totalSubscribers = await subscription.totalSubscribers();
     const paused = await subscription.paused();
 
     // Get all plans

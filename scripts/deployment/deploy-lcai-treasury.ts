@@ -1,7 +1,6 @@
 // path: lcai-dao/scripts/deployment/deploy-lcai-treasury.ts
 import { network } from "hardhat";
 import fs from "fs";
-import hardhatConfig from "../../hardhat.config.js";
 import { syncDeploymentArtifacts } from "./utils/updateDeploymentArtifacts.js";
 
 // -------------------- ABI & Contract Utilities --------------------
@@ -28,9 +27,9 @@ async function main() {
 
   const { ethers } = await network.connect();
   const [deployer] = await ethers.getSigners();
-  const networkName = (network as any).name;
   const chainId = (await ethers.provider.getNetwork()).chainId;
-  const networkConfig = (hardhatConfig.networks as any)?.[networkName] || {};
+  const networkConfig = (network as any).config;
+  const networkName = networkConfig?.name || (network as any).name;
   const explorerUrl = networkConfig.explorer?.url || "";
 
   const timelockAddressEnv = process.env.TIMELOCK_ADDRESS?.trim();
