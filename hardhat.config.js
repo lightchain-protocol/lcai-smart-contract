@@ -6,13 +6,24 @@ const SOLIDITY_VERSION = "0.8.28";
 export default defineConfig({
   plugins: [hardhatToolboxMochaEthersPlugin],
   solidity: {
-    version: SOLIDITY_VERSION,
-    settings: {
-      optimizer: {
-        enabled: true,
-        runs: 200,
+    // Same settings for every build profile. Ignition deploys with the
+    // "production" profile, which otherwise falls back to no optimizer / no
+    // viaIR and fails on the larger contracts.
+    profiles: {
+      default: {
+        version: SOLIDITY_VERSION,
+        settings: {
+          optimizer: { enabled: true, runs: 200 },
+          viaIR: true,
+        },
       },
-      viaIR: true,
+      production: {
+        version: SOLIDITY_VERSION,
+        settings: {
+          optimizer: { enabled: true, runs: 200 },
+          viaIR: true,
+        },
+      },
     },
   },
   networks: {
@@ -43,6 +54,11 @@ export default defineConfig({
       chainType: "l1",
       url: configVariable("MAINNET_RPC_URL"),
       accounts: [configVariable("MAINNET_PRIVATE_KEY")],
+    },
+  },
+  verify: {
+    etherscan: {
+      apiKey: configVariable("ETHERSCAN_API_KEY"),
     },
   },
 });

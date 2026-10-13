@@ -95,3 +95,7 @@ deployments/hardhat/
 
 # Ignition deployments
 ignition/deployments/chain-*/
+
+# Ignition build outputs for named deployments (journal + addresses are kept)
+ignition/deployments/*/artifacts/
+ignition/deployments/*/build-info/

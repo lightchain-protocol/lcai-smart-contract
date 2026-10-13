@@ -1,0 +1,10 @@
+{
+  "LcaiZapModule": {
+    "swapRouter": "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E",
+    "warpRoute": "0xa4d14290Cc01ec798a7852cB1b3b314ea8F992AF",
+    "lcai": "0xCAb9A0d25d7F673E6cc05B35cd28D3e888d5D4A3",
+    "weth": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
+    "poolFee": 3000,
+    "destinationDomain": 8200
+  }
+}
